@@ -3,7 +3,6 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>KeepAwakeTool.Platform.Win</RootNamespace>
     <AssemblyName>KeepAwakeTool.Platform.Win</AssemblyName>
-    <UseWindowsForms>false</UseWindowsForms>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\KeepAwakeTool.Core\KeepAwakeTool.Core.csproj" />

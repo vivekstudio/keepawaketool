@@ -4,6 +4,7 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>KeepAwakeTool.App</RootNamespace>
     <AssemblyName>KeepAwakeTool</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <UseAvalonia>true</UseAvalonia>
   </PropertyGroup>
   <ItemGroup>
