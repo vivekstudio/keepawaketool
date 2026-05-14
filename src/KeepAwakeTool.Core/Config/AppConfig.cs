@@ -1,3 +1,4 @@
+using System.Linq;
 using KeepAwakeTool.Core.Activity;
 using KeepAwakeTool.Core.Platform;
 
@@ -50,6 +51,16 @@ public sealed record ScheduleConfig
     {
         DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday
     };
+
+    public bool Equals(ScheduleConfig? other) =>
+        other is not null
+        && Enabled == other.Enabled
+        && StartTime == other.StartTime
+        && EndTime == other.EndTime
+        && Days.SequenceEqual(other.Days);
+
+    public override int GetHashCode() =>
+        HashCode.Combine(Enabled, StartTime, EndTime, Days.Count);
 }
 
 public sealed record HotkeyConfig
