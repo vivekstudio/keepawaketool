@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using KeepAwakeTool.Core.Activity;
 using KeepAwakeTool.Core.Platform;
 
