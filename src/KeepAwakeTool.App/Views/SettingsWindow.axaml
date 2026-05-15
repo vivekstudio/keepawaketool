@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:KeepAwakeTool.App.Views"
+        x:Class="KeepAwakeTool.App.Views.SettingsWindow"
+        Width="600" Height="450"
+        CanResize="False"
+        Title="KeepAwakeTool — Settings">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10">
+            <Button Content="Apply" Name="ApplyButton" Margin="0,0,5,0"/>
+            <Button Content="OK"    Name="OkButton"    Margin="0,0,5,0"/>
+            <Button Content="Cancel" Name="CancelButton"/>
+        </StackPanel>
+        <TabControl>
+            <TabItem Header="General"><v:GeneralTab/></TabItem>
+            <TabItem Header="Activity"><TextBlock Margin="10" Text="(Activity tab — Task 24)"/></TabItem>
+            <TabItem Header="Power"><TextBlock Margin="10" Text="(Power tab — Task 25)"/></TabItem>
+            <TabItem Header="Schedule"><TextBlock Margin="10" Text="(Schedule tab — Task 26)"/></TabItem>
+            <TabItem Header="Hotkey"><TextBlock Margin="10" Text="(Hotkey tab — Task 27)"/></TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

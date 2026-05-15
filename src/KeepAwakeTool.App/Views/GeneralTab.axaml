@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:KeepAwakeTool.App.ViewModels"
+             x:Class="KeepAwakeTool.App.Views.GeneralTab"
+             x:DataType="vm:SettingsViewModel">
+    <StackPanel Margin="15" Spacing="12">
+        <StackPanel Spacing="4">
+            <TextBlock Text="Interval (seconds)"/>
+            <NumericUpDown Minimum="10" Maximum="240" Increment="5" Value="{Binding General.IntervalSeconds}"/>
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <TextBlock Text="Smart-pause idle threshold (seconds)"/>
+            <NumericUpDown Minimum="5" Maximum="120" Increment="5" Value="{Binding General.IdleThresholdSeconds}"/>
+        </StackPanel>
+        <CheckBox Content="Start with Windows" IsChecked="{Binding General.AutoStartOnLogin}"/>
+        <CheckBox Content="Start minimized to tray" IsChecked="{Binding General.StartMinimizedToTray}"/>
+        <StackPanel Spacing="4">
+            <TextBlock Text="Theme"/>
+            <ComboBox SelectedItem="{Binding General.Theme}">
+                <ComboBoxItem>System</ComboBoxItem>
+                <ComboBoxItem>Light</ComboBoxItem>
+                <ComboBoxItem>Dark</ComboBoxItem>
+            </ComboBox>
+        </StackPanel>
+    </StackPanel>
+</UserControl>
