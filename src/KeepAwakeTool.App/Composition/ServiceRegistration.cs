@@ -1,0 +1,61 @@
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using KeepAwakeTool.Core.Activity;
+using KeepAwakeTool.Core.Config;
+using KeepAwakeTool.Core.Platform;
+using KeepAwakeTool.Core.Power;
+using KeepAwakeTool.Core.Scheduling;
+using KeepAwakeTool.Platform.Win;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace KeepAwakeTool.App.Composition;
+
+public static class ServiceRegistration
+{
+    public static IServiceProvider Build()
+    {
+        var services = new ServiceCollection();
+
+        var configPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "KeepAwakeTool", "config.json");
+
+        var store = new ConfigurationStore(configPath);
+        var initial = store.Load();
+        store.StartWatching();
+        services.AddSingleton(store);
+
+        AppConfig configSnapshot = initial;
+        store.Changed += (_, cfg) => configSnapshot = cfg;
+        services.AddSingleton<Func<AppConfig>>(_ => () => configSnapshot);
+
+        services.AddSingleton<IClock, SystemClock>();
+
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            throw new PlatformNotSupportedException("v1 supports Windows only.");
+
+        var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName!;
+        services.AddSingleton<IInputSimulator, WindowsInputSimulator>();
+        services.AddSingleton<IIdleMonitor, WindowsIdleMonitor>();
+        services.AddSingleton<IPowerManager, WindowsPowerManager>();
+        services.AddSingleton<IAutoStartManager>(_ => new WindowsAutoStartManager(exePath));
+        services.AddSingleton<IGlobalHotkeyService, WindowsGlobalHotkeyService>();
+
+        services.AddSingleton<ActivityEngine>(sp => new ActivityEngine(
+            sp.GetRequiredService<IInputSimulator>(),
+            sp.GetRequiredService<IIdleMonitor>(),
+            sp.GetRequiredService<IPowerManager>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<Func<AppConfig>>()()));
+
+        services.AddSingleton<Scheduler>(sp => new Scheduler(
+            sp.GetRequiredService<ActivityEngine>(),
+            sp.GetRequiredService<Func<AppConfig>>(),
+            sp.GetRequiredService<IClock>()));
+
+        services.AddSingleton<PowerModeController>(sp => new PowerModeController(sp.GetRequiredService<IPowerManager>()));
+
+        return services.BuildServiceProvider();
+    }
+}

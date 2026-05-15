@@ -1,20 +1,32 @@
-﻿using Avalonia;
+using Avalonia;
+using KeepAwakeTool.App.SingleInstance;
 using System;
 
 namespace KeepAwakeTool.App;
 
-class Program
+internal static class Program
 {
-    // Initialization code. Don't use any Avalonia, third-party APIs or any
-    // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
-    // yet and stuff might break.
     [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    public static int Main(string[] args)
+    {
+        if (!SingleInstanceGuard.TryAcquire())
+        {
+            SingleInstanceGuard.SignalExistingInstance();
+            return 0;
+        }
 
-    // Avalonia configuration, don't remove; also used by visual designer.
-    public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
-            .LogToTrace();
+        try
+        {
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            return 0;
+        }
+        finally
+        {
+            SingleInstanceGuard.Release();
+        }
+    }
+
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>()
+        .UsePlatformDetect()
+        .LogToTrace();
 }
