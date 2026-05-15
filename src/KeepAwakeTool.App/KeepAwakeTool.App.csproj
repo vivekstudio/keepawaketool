@@ -8,6 +8,9 @@
     <UseAvalonia>true</UseAvalonia>
   </PropertyGroup>
   <ItemGroup>
+    <AvaloniaResource Include="Tray/Assets/*.ico" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\KeepAwakeTool.Core\KeepAwakeTool.Core.csproj" />
     <ProjectReference Include="..\KeepAwakeTool.Platform.Win\KeepAwakeTool.Platform.Win.csproj" />
     <PackageReference Include="Avalonia" Version="12.0.0" />
