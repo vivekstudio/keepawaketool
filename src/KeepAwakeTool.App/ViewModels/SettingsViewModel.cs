@@ -24,7 +24,11 @@ public sealed class SettingsViewModel
 
     public AppConfig BuildConfig() => _draft with
     {
-        Activity = Activity.Build(),
+        Activity = Activity.Build() with
+        {
+            IntervalSeconds = General.IntervalSeconds,
+            IdleThresholdSeconds = General.IdleThresholdSeconds
+        },
         Power    = Power.Build(),
         Schedule = Schedule.Build(),
         Hotkey   = Hotkey.Build(),

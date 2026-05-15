@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:KeepAwakeTool.App.ViewModels"
+             x:Class="KeepAwakeTool.App.Views.ActivityTab"
+             x:DataType="vm:SettingsViewModel">
+    <StackPanel Margin="15" Spacing="12">
+        <TextBlock Text="Mouse mode" FontWeight="Bold"/>
+        <ComboBox SelectedItem="{Binding Activity.MouseMode}"
+                  ItemsSource="{Binding Activity.MouseModes}" Width="200" HorizontalAlignment="Left"/>
+        <StackPanel Spacing="4">
+            <TextBlock Text="Jiggle pixels (used when mode = Jiggle)"/>
+            <NumericUpDown Minimum="1" Maximum="10" Value="{Binding Activity.JigglePixelsValue}" Width="120" HorizontalAlignment="Left"/>
+        </StackPanel>
+
+        <Separator/>
+        <TextBlock Text="Keystroke" FontWeight="Bold"/>
+        <CheckBox Content="Enabled" IsChecked="{Binding Activity.KeystrokeEnabled}"/>
+        <StackPanel Spacing="4" IsEnabled="{Binding Activity.KeystrokeEnabled}">
+            <TextBlock Text="Key"/>
+            <ComboBox SelectedItem="{Binding Activity.KeystrokeKey}"
+                      ItemsSource="{Binding Activity.Keys}" Width="120" HorizontalAlignment="Left"/>
+            <TextBlock Text="Send every Nth cycle"/>
+            <NumericUpDown Minimum="1" Maximum="10" Value="{Binding Activity.EveryNthCycleValue}" Width="120" HorizontalAlignment="Left"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>
