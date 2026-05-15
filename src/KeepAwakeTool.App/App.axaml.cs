@@ -39,11 +39,14 @@ public partial class App : Application
             _pump = new EnginePump(Services);
             _pump.Start();
 
+            Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
+
             ApplyAutostart(configProvider());
             ApplyHotkey(configProvider());
 
             desktop.Exit += (_, _) =>
             {
+                Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
                 _pump?.Dispose();
                 power.Stop();
                 Services.GetRequiredService<IGlobalHotkeyService>().Unregister();
@@ -71,5 +74,17 @@ public partial class App : Application
             hk.TryRegister(hotkey, () => Dispatcher.UIThread.Post(scheduler.TogglePause));
         }
         catch (ArgumentException) { /* invalid combination — skip */ }
+    }
+
+    private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == Microsoft.Win32.PowerModes.Resume)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                var configProvider = Services.GetRequiredService<Func<Core.Config.AppConfig>>();
+                Services.GetRequiredService<Core.Power.PowerModeController>().Start(configProvider().Power);
+            });
+        }
     }
 }
