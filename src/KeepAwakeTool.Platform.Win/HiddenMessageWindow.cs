@@ -63,6 +63,12 @@ internal sealed class HiddenMessageWindow : IDisposable
             TranslateMessage(ref msg);
             DispatchMessageW(ref msg);
         }
+
+        if (_hwnd != IntPtr.Zero)
+        {
+            DestroyWindow(_hwnd);
+            _hwnd = IntPtr.Zero;
+        }
     }
 
     private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
@@ -76,7 +82,6 @@ internal sealed class HiddenMessageWindow : IDisposable
         if (_disposed) return;
         _disposed = true;
         PostThreadMessageW(_pumpThreadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
-        _pumpThread.Join(1000);
-        if (_hwnd != IntPtr.Zero) DestroyWindow(_hwnd);
+        _pumpThread.Join(2000);
     }
 }
