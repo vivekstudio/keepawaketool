@@ -16,7 +16,7 @@
             <TabItem Header="Activity"><v:ActivityTab/></TabItem>
             <TabItem Header="Power"><v:PowerTab/></TabItem>
             <TabItem Header="Schedule"><v:ScheduleTab/></TabItem>
-            <TabItem Header="Hotkey"><TextBlock Margin="10" Text="(Hotkey tab — Task 27)"/></TabItem>
+            <TabItem Header="Hotkey"><v:HotkeyTab/></TabItem>
         </TabControl>
     </DockPanel>
 </Window>
