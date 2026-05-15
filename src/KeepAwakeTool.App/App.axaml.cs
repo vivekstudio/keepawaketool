@@ -82,8 +82,7 @@ public partial class App : Application
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                var configProvider = Services.GetRequiredService<Func<Core.Config.AppConfig>>();
-                Services.GetRequiredService<Core.Power.PowerModeController>().Start(configProvider().Power);
+                Services.GetRequiredService<Core.Power.PowerModeController>().Rearm();
             });
         }
     }

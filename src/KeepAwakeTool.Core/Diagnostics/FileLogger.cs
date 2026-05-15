@@ -16,8 +16,15 @@ public sealed class FileLogger
 
     public void Log(string level, string message)
     {
-        var path = Path.Combine(_dir, $"keepawaketool-{DateTime.UtcNow:yyyyMMdd}.log");
-        var line = $"{DateTime.UtcNow:O} [{level}] {message}{Environment.NewLine}";
-        lock (_gate) File.AppendAllText(path, line);
+        try
+        {
+            var path = Path.Combine(_dir, $"keepawaketool-{DateTime.UtcNow:yyyyMMdd}.log");
+            var line = $"{DateTime.UtcNow:O} [{level}] {message}{Environment.NewLine}";
+            lock (_gate) File.AppendAllText(path, line);
+        }
+        catch
+        {
+            // logger of last resort: never throw
+        }
     }
 }

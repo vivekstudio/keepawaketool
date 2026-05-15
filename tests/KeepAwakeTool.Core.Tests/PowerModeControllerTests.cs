@@ -36,4 +36,23 @@ public class PowerModeControllerTests
         ctrl.ApplyConfig(new PowerConfig { ForceDisplayOffAfterInjection = false, PowerSaveMode = false });
         pm.KeepAwakeOnCalls.Should().Be(1);
     }
+
+    [Fact]
+    public void Rearm_reasserts_KeepSystemAwake_when_started()
+    {
+        var pm = new FakePowerManager();
+        var ctrl = new PowerModeController(pm);
+        ctrl.Start(ConfigDefaults.Default().Power);
+        ctrl.Rearm();
+        pm.KeepAwakeOnCalls.Should().Be(2);
+    }
+
+    [Fact]
+    public void Rearm_is_noop_when_not_started()
+    {
+        var pm = new FakePowerManager();
+        var ctrl = new PowerModeController(pm);
+        ctrl.Rearm();
+        pm.KeepAwakeOnCalls.Should().Be(0);
+    }
 }

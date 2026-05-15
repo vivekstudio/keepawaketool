@@ -17,6 +17,11 @@ public sealed class PowerModeController
         _awake = true;
     }
 
+    public void Rearm()
+    {
+        if (_awake) _power.KeepSystemAwake(true);
+    }
+
     public void ApplyConfig(PowerConfig _) { /* no-op for now; reserved for future per-config logic */ }
 
     public void Stop()
