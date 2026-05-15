@@ -38,7 +38,8 @@ public sealed class TrayIconController
     {
         var menu = new NativeMenu();
         var pause = new NativeMenuItem("Pause");
-        pause.Click += (_, _) => _sp.GetRequiredService<Scheduler>().TogglePause();
+        pause.Click += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => _sp.GetRequiredService<Scheduler>().TogglePause());
         menu.Add(pause);
         menu.Add(new NativeMenuItemSeparator());
         var settings = new NativeMenuItem("Settings…");

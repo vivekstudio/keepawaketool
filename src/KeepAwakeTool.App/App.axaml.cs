@@ -39,6 +39,13 @@ public partial class App : Application
             _pump = new EnginePump(Services);
             _pump.Start();
 
+            var store = Services.GetRequiredService<KeepAwakeTool.Core.Config.ConfigurationStore>();
+            store.Changed += (_, cfg) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                ApplyAutostart(cfg);
+                ApplyHotkey(cfg);
+            });
+
             Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
             ApplyAutostart(configProvider());
