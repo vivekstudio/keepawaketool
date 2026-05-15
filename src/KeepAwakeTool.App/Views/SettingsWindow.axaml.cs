@@ -26,5 +26,15 @@ public partial class SettingsWindow : Window
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
-    private void ApplyAndStay() => _store.Save(_vm.BuildConfig());
+    private void ApplyAndStay()
+    {
+        var cfg = _vm.BuildConfig();
+        _store.Save(cfg);
+
+        if (Avalonia.Application.Current is KeepAwakeTool.App.App app)
+        {
+            app.ApplyAutostart(cfg);
+            app.ApplyHotkey(cfg);
+        }
+    }
 }
