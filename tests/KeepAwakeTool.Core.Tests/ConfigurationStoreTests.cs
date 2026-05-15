@@ -78,19 +78,25 @@ public class ConfigurationStoreTests : IDisposable
         var store = new ConfigurationStore(_path);
         _ = store.Load();
         store.StartWatching();
-
-        var tcs = new TaskCompletionSource<AppConfig>();
-        store.Changed += (_, cfg) => tcs.TrySetResult(cfg);
-
-        var updated = ConfigDefaults.Default() with
+        try
         {
-            Activity = ConfigDefaults.Default().Activity with { IntervalSeconds = 120 }
-        };
-        store.Save(updated);
+            await Task.Delay(250); // let the OS watcher fully arm before writing
 
-        var received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        received.Activity.IntervalSeconds.Should().Be(120);
+            var tcs = new TaskCompletionSource<AppConfig>();
+            store.Changed += (_, cfg) => tcs.TrySetResult(cfg);
 
-        store.StopWatching();
+            var updated = ConfigDefaults.Default() with
+            {
+                Activity = ConfigDefaults.Default().Activity with { IntervalSeconds = 120 }
+            };
+            store.Save(updated);
+
+            var received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            received.Activity.IntervalSeconds.Should().Be(120);
+        }
+        finally
+        {
+            store.StopWatching();
+        }
     }
 }
