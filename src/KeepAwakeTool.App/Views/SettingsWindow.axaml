@@ -14,7 +14,7 @@
         <TabControl>
             <TabItem Header="General"><v:GeneralTab/></TabItem>
             <TabItem Header="Activity"><v:ActivityTab/></TabItem>
-            <TabItem Header="Power"><TextBlock Margin="10" Text="(Power tab — Task 25)"/></TabItem>
+            <TabItem Header="Power"><v:PowerTab/></TabItem>
             <TabItem Header="Schedule"><TextBlock Margin="10" Text="(Schedule tab — Task 26)"/></TabItem>
             <TabItem Header="Hotkey"><TextBlock Margin="10" Text="(Hotkey tab — Task 27)"/></TabItem>
         </TabControl>

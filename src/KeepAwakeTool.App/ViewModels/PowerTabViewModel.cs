@@ -4,7 +4,18 @@ namespace KeepAwakeTool.App.ViewModels;
 
 public sealed class PowerTabViewModel
 {
-    private readonly AppConfig _src;
-    public PowerTabViewModel(AppConfig cfg) => _src = cfg;
-    public PowerConfig Build() => _src.Power;
+    public bool ForceDisplayOffAfterInjection { get; set; }
+    public bool PowerSaveMode { get; set; }
+
+    public PowerTabViewModel(AppConfig cfg)
+    {
+        ForceDisplayOffAfterInjection = cfg.Power.ForceDisplayOffAfterInjection;
+        PowerSaveMode = cfg.Power.PowerSaveMode;
+    }
+
+    public PowerConfig Build() => new()
+    {
+        ForceDisplayOffAfterInjection = ForceDisplayOffAfterInjection,
+        PowerSaveMode = PowerSaveMode
+    };
 }
