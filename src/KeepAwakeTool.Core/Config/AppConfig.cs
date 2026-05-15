@@ -59,8 +59,15 @@ public sealed record ScheduleConfig
         && EndTime == other.EndTime
         && Days.SequenceEqual(other.Days);
 
-    public override int GetHashCode() =>
-        HashCode.Combine(Enabled, StartTime, EndTime, Days.Count);
+    public override int GetHashCode()
+    {
+        var h = new HashCode();
+        h.Add(Enabled);
+        h.Add(StartTime);
+        h.Add(EndTime);
+        foreach (var d in Days) h.Add(d);
+        return h.ToHashCode();
+    }
 }
 
 public sealed record HotkeyConfig

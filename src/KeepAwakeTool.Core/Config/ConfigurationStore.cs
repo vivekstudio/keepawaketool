@@ -11,6 +11,8 @@ public sealed class ConfigurationStore
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
+        // Intentional: no JsonNamingPolicy — preserves PascalCase enum values
+        // ("Invisible", "F15", "Monday") matching the spec §8 example JSON.
         Converters = { new JsonStringEnumConverter() },
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true
