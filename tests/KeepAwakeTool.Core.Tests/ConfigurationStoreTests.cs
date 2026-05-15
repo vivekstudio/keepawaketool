@@ -50,4 +50,47 @@ public class ConfigurationStoreTests : IDisposable
             """);
         new ConfigurationStore(_path).Load().Activity.IntervalSeconds.Should().Be(10);
     }
+
+    [Fact]
+    public void Load_quarantines_corrupt_file_and_returns_defaults()
+    {
+        File.WriteAllText(_path, "{ not valid json");
+        var loaded = new ConfigurationStore(_path).Load();
+        loaded.Should().Be(ConfigDefaults.Default());
+        Directory.EnumerateFiles(_tempDir, "config.json.corrupt.*.json").Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void Save_then_Load_round_trips_values()
+    {
+        var store = new ConfigurationStore(_path);
+        var cfg = ConfigDefaults.Default() with
+        {
+            Power = new PowerConfig { ForceDisplayOffAfterInjection = true, PowerSaveMode = false }
+        };
+        store.Save(cfg);
+        store.Load().Power.ForceDisplayOffAfterInjection.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Changed_event_fires_when_file_is_modified()
+    {
+        var store = new ConfigurationStore(_path);
+        _ = store.Load();
+        store.StartWatching();
+
+        var tcs = new TaskCompletionSource<AppConfig>();
+        store.Changed += (_, cfg) => tcs.TrySetResult(cfg);
+
+        var updated = ConfigDefaults.Default() with
+        {
+            Activity = ConfigDefaults.Default().Activity with { IntervalSeconds = 120 }
+        };
+        store.Save(updated);
+
+        var received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        received.Activity.IntervalSeconds.Should().Be(120);
+
+        store.StopWatching();
+    }
 }

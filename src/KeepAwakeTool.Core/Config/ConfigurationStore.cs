@@ -19,6 +19,42 @@ public sealed class ConfigurationStore
     };
 
     private readonly string _path;
+    private FileSystemWatcher? _watcher;
+    public event EventHandler<AppConfig>? Changed;
+
+    public void StartWatching()
+    {
+        if (_watcher is not null) return;
+        var dir = System.IO.Path.GetDirectoryName(_path)!;
+        var name = System.IO.Path.GetFileName(_path);
+        _watcher = new FileSystemWatcher(dir)
+        {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
+            EnableRaisingEvents = true
+        };
+        void FireChanged(object s, FileSystemEventArgs e)
+        {
+            // Match on the target config file name (handles File.Replace rename)
+            var eventName = System.IO.Path.GetFileName(e.FullPath);
+            if (!string.Equals(eventName, name, StringComparison.OrdinalIgnoreCase)) return;
+            try { Changed?.Invoke(this, Load()); } catch { /* swallow; logged elsewhere */ }
+        }
+        _watcher.Changed += FireChanged;
+        _watcher.Created += FireChanged;
+        _watcher.Renamed += (s, e) =>
+        {
+            // File.Replace renames tmp → config.json; match on the new name
+            var newName = System.IO.Path.GetFileName(e.FullPath);
+            if (!string.Equals(newName, name, StringComparison.OrdinalIgnoreCase)) return;
+            try { Changed?.Invoke(this, Load()); } catch { /* swallow; logged elsewhere */ }
+        };
+    }
+
+    public void StopWatching()
+    {
+        _watcher?.Dispose();
+        _watcher = null;
+    }
 
     public ConfigurationStore(string path) => _path = path;
 
