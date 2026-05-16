@@ -3,6 +3,7 @@
              xmlns:vm="using:KeepAwakeTool.App.ViewModels"
              x:Class="KeepAwakeTool.App.Views.ActivityTab"
              x:DataType="vm:SettingsViewModel">
+    <ScrollViewer>
     <StackPanel Margin="15" Spacing="12">
         <TextBlock Text="Mouse mode" FontWeight="Bold"/>
         <ComboBox SelectedItem="{Binding Activity.MouseMode}"
@@ -23,4 +24,5 @@
             <NumericUpDown Minimum="1" Maximum="10" Value="{Binding Activity.EveryNthCycleValue}" Width="120" HorizontalAlignment="Left"/>
         </StackPanel>
     </StackPanel>
+    </ScrollViewer>
 </UserControl>

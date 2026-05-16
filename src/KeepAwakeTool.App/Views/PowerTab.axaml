@@ -3,6 +3,7 @@
              xmlns:vm="using:KeepAwakeTool.App.ViewModels"
              x:Class="KeepAwakeTool.App.Views.PowerTab"
              x:DataType="vm:SettingsViewModel">
+    <ScrollViewer>
     <StackPanel Margin="15" Spacing="14">
         <StackPanel Spacing="4">
             <CheckBox Content="Force display off after each injection (S1)" IsChecked="{Binding Power.ForceDisplayOffAfterInjection}"/>
@@ -15,4 +16,5 @@
                        Text="When enabled, the tool keeps the system from sleeping but does NOT inject input. Teams and similar apps will mark you as Away. Default OFF."/>
         </StackPanel>
     </StackPanel>
+    </ScrollViewer>
 </UserControl>

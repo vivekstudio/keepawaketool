@@ -3,6 +3,7 @@
              xmlns:vm="using:KeepAwakeTool.App.ViewModels"
              x:Class="KeepAwakeTool.App.Views.GeneralTab"
              x:DataType="vm:SettingsViewModel">
+    <ScrollViewer>
     <StackPanel Margin="15" Spacing="12">
         <StackPanel Spacing="4">
             <TextBlock Text="Interval (seconds)"/>
@@ -19,4 +20,5 @@
             <ComboBox ItemsSource="{Binding General.Themes}" SelectedItem="{Binding General.Theme}"/>
         </StackPanel>
     </StackPanel>
+    </ScrollViewer>
 </UserControl>

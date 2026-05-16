@@ -3,6 +3,7 @@
              xmlns:vm="using:KeepAwakeTool.App.ViewModels"
              x:Class="KeepAwakeTool.App.Views.HotkeyTab"
              x:DataType="vm:SettingsViewModel">
+    <ScrollViewer>
     <StackPanel Margin="15" Spacing="10">
         <CheckBox Content="Enable global hotkey to pause/resume" IsChecked="{Binding Hotkey.Enabled}"/>
         <StackPanel IsEnabled="{Binding Hotkey.Enabled}" Spacing="6">
@@ -11,4 +12,5 @@
             <TextBlock Text="{Binding Hotkey.ValidationMessage}" Foreground="OrangeRed"/>
         </StackPanel>
     </StackPanel>
+    </ScrollViewer>
 </UserControl>
