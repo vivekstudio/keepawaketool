@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using KeepAwakeTool.App;
 using KeepAwakeTool.Core.Activity;
 using KeepAwakeTool.Core.Config;
 using KeepAwakeTool.Core.Diagnostics;
@@ -65,6 +66,8 @@ public static class ServiceRegistration
             sp.GetRequiredService<IClock>()));
 
         services.AddSingleton<PowerModeController>(sp => new PowerModeController(sp.GetRequiredService<IPowerManager>()));
+
+        services.AddSingleton<EnginePump>(sp => new EnginePump(sp, sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>()));
 
         return services.BuildServiceProvider();
     }

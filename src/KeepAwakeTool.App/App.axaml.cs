@@ -50,7 +50,7 @@ public partial class App : Application
             if (!configProvider().Startup.StartMinimizedToTray)
                 Tray.ShowSettings();
 
-            _pump = new EnginePump(Services, Services.GetRequiredService<Core.Diagnostics.FileLogger>());
+            _pump = Services.GetRequiredService<EnginePump>();
             _pump.Start();
             _log.Log("INFO", "Engine pump started");
 

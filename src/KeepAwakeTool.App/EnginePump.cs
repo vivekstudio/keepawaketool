@@ -17,6 +17,8 @@ public sealed class EnginePump : IDisposable
     private Task? _loop;
     private bool _disposed;
 
+    public DateTimeOffset? NextTickUtc { get; private set; }
+
     public EnginePump(IServiceProvider sp, FileLogger logger)
     {
         _sp = sp;
@@ -37,6 +39,7 @@ public sealed class EnginePump : IDisposable
         {
             var cfg = configProvider();
             var interval = TimeSpan.FromSeconds(Math.Max(10, cfg.Activity.IntervalSeconds));
+            NextTickUtc = DateTimeOffset.UtcNow + interval;
             try { await Task.Delay(interval, ct); }
             catch (OperationCanceledException) { break; }
             await RunTickSafelyAsync(_scheduler.RunOneTickAsync, _logger, ct);
