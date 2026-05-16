@@ -5,9 +5,10 @@ using KeepAwakeTool.Core.Config;
 
 namespace KeepAwakeTool.App.ViewModels;
 
-public sealed class ScheduleTabViewModel
+public sealed class ScheduleTabViewModel : ObservableObject
 {
-    public bool Enabled { get; set; }
+    private bool _enabled;
+    public bool Enabled { get => _enabled; set => SetField(ref _enabled, value); }
     public string StartTime { get; set; } = "09:00";
     public string EndTime { get; set; } = "18:00";
     public bool Mon { get; set; } = true;

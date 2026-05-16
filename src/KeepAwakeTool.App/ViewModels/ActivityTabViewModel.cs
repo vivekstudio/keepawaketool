@@ -4,11 +4,12 @@ using KeepAwakeTool.Core.Platform;
 
 namespace KeepAwakeTool.App.ViewModels;
 
-public sealed class ActivityTabViewModel
+public sealed class ActivityTabViewModel : ObservableObject
 {
     public MouseMode MouseMode { get; set; }
     public int JigglePixels { get; set; }
-    public bool KeystrokeEnabled { get; set; }
+    private bool _keystrokeEnabled;
+    public bool KeystrokeEnabled { get => _keystrokeEnabled; set => SetField(ref _keystrokeEnabled, value); }
     public VirtualKey KeystrokeKey { get; set; }
     public int EveryNthCycle { get; set; }
 
