@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using KeepAwakeTool.Core.Config;
@@ -18,13 +17,11 @@ public sealed class EnginePump : IDisposable
     private Task? _loop;
     private bool _disposed;
 
-    public EnginePump(IServiceProvider sp)
+    public EnginePump(IServiceProvider sp, FileLogger logger)
     {
         _sp = sp;
+        _logger = logger;
         _scheduler = sp.GetRequiredService<Scheduler>();
-        _logger = new FileLogger(Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "KeepAwakeTool", "logs"));
     }
 
     public void Start()
@@ -42,9 +39,24 @@ public sealed class EnginePump : IDisposable
             var interval = TimeSpan.FromSeconds(Math.Max(10, cfg.Activity.IntervalSeconds));
             try { await Task.Delay(interval, ct); }
             catch (OperationCanceledException) { break; }
-            try { await _scheduler.RunOneTickAsync(ct); }
-            catch (OperationCanceledException) { break; }
-            catch (Exception ex) { _logger.Log("ERROR", "Engine tick failed: " + ex); }
+            await RunTickSafelyAsync(_scheduler.RunOneTickAsync, _logger, ct);
+        }
+    }
+
+    public static async Task RunTickSafelyAsync(
+        Func<CancellationToken, Task> tick, FileLogger logger, CancellationToken ct)
+    {
+        try
+        {
+            await tick(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // normal shutdown — not an error
+        }
+        catch (Exception ex)
+        {
+            logger.Log("ERROR", "Engine tick failed: " + ex);
         }
     }
 

@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using KeepAwakeTool.Core.Activity;
 using KeepAwakeTool.Core.Config;
+using KeepAwakeTool.Core.Diagnostics;
 using KeepAwakeTool.Core.Platform;
 using KeepAwakeTool.Core.Power;
 using KeepAwakeTool.Core.Scheduling;
@@ -20,6 +21,10 @@ public static class ServiceRegistration
         var configPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "KeepAwakeTool", "config.json");
+
+        services.AddSingleton(new FileLogger(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "KeepAwakeTool", "logs")));
 
         var store = new ConfigurationStore(configPath);
         var initial = store.Load();

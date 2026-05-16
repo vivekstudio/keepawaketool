@@ -36,7 +36,7 @@ public partial class App : Application
             Tray = new TrayIconController(Services);
             Tray.Initialize();
 
-            _pump = new EnginePump(Services);
+            _pump = new EnginePump(Services, Services.GetRequiredService<Core.Diagnostics.FileLogger>());
             _pump.Start();
 
             var store = Services.GetRequiredService<KeepAwakeTool.Core.Config.ConfigurationStore>();
