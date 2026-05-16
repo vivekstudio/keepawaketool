@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform;
@@ -22,6 +23,8 @@ public sealed class TrayIconController
     private NativeMenuItem? _s1Item;
     private NativeMenuItem? _s3Item;
     private bool _remote;
+    private DispatcherTimer? _tooltipTimer;
+    private bool _flashing;
 
     public TrayIconController(IServiceProvider sp) => _sp = sp;
 
@@ -49,6 +52,14 @@ public sealed class TrayIconController
         _sp.GetRequiredService<ConfigurationStore>().Changed +=
             (_, cfg) => Dispatcher.UIThread.Post(() => SyncPowerChecks(cfg));
         UpdateIcon(scheduler.State);
+
+        _tooltipTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _tooltipTimer.Tick += (_, _) => RefreshTooltip();
+        _tooltipTimer.Start();
+
+        _sp.GetRequiredService<KeepAwakeTool.Core.Activity.ActivityEngine>().Injected +=
+            () => Dispatcher.UIThread.Post(FlashHeartbeat);
+
         scheduler.Start();
     }
 
@@ -109,6 +120,9 @@ public sealed class TrayIconController
         if (_s3Item is not null) _s3Item.IsChecked = cfg.Power.PowerSaveMode;
     }
 
+    private string BaseTooltip(EngineState state)
+        => $"KeepAwakeTool — {state}{(_remote ? " — RDP: display-off limited" : "")}";
+
     private void UpdateIcon(EngineState state)
     {
         if (_tray is null) return;
@@ -121,9 +135,43 @@ public sealed class TrayIconController
         };
         using var stream = AssetLoader.Open(new Uri(asset));
         _tray.Icon = new WindowIcon(stream);
-        var suffix = _remote ? " — RDP: display-off limited" : "";
-        _tray.ToolTipText = $"KeepAwakeTool — {state}{suffix}";
+        _tray.ToolTipText = BaseTooltip(state);
         if (_pauseItem is not null)
             _pauseItem.Header = state == EngineState.Paused ? "Resume" : "Pause";
+    }
+
+    private void RefreshTooltip()
+    {
+        if (_tray is null) return;
+        var scheduler = _sp.GetRequiredService<Scheduler>();
+        var state = scheduler.State;
+        var text = BaseTooltip(state);
+        if (state == EngineState.Running)
+        {
+            var next = _sp.GetRequiredService<EnginePump>().NextTickUtc;
+            if (next is { } n)
+            {
+                var secs = (int)Math.Max(0, (n - DateTimeOffset.UtcNow).TotalSeconds);
+                text += $" — next activity in {secs}s";
+            }
+        }
+        _tray.ToolTipText = text;
+    }
+
+    private async void FlashHeartbeat()
+    {
+        if (_tray is null || _flashing) return;
+        var cfg = _sp.GetRequiredService<Func<AppConfig>>()();
+        if (!cfg.Ui.ShowHeartbeatAnimation) return;
+        _flashing = true;
+        try
+        {
+            var prev = _tray.Icon;
+            using (var s = AssetLoader.Open(new Uri("avares://KeepAwakeTool/Tray/Assets/icon-heartbeat.ico")))
+                _tray.Icon = new WindowIcon(s);
+            await Task.Delay(160);
+            _tray.Icon = prev;
+        }
+        finally { _flashing = false; }
     }
 }
