@@ -16,11 +16,7 @@
         <CheckBox Content="Start minimized to tray" IsChecked="{Binding General.StartMinimizedToTray}"/>
         <StackPanel Spacing="4">
             <TextBlock Text="Theme"/>
-            <ComboBox SelectedItem="{Binding General.Theme}">
-                <ComboBoxItem>System</ComboBoxItem>
-                <ComboBoxItem>Light</ComboBoxItem>
-                <ComboBoxItem>Dark</ComboBoxItem>
-            </ComboBox>
+            <ComboBox ItemsSource="{Binding General.Themes}" SelectedItem="{Binding General.Theme}"/>
         </StackPanel>
     </StackPanel>
 </UserControl>

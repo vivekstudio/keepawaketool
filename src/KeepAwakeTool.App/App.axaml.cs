@@ -35,6 +35,7 @@ public partial class App : Application
 
             Tray = new TrayIconController(Services);
             Tray.Initialize();
+            ApplyTheme(configProvider());
 
             _pump = new EnginePump(Services, Services.GetRequiredService<Core.Diagnostics.FileLogger>());
             _pump.Start();
@@ -44,6 +45,7 @@ public partial class App : Application
             {
                 ApplyAutostart(cfg);
                 ApplyHotkey(cfg);
+                ApplyTheme(cfg);
             });
 
             Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -60,6 +62,16 @@ public partial class App : Application
             };
         }
         base.OnFrameworkInitializationCompleted();
+    }
+
+    public void ApplyTheme(AppConfig cfg)
+    {
+        RequestedThemeVariant = cfg.Ui.Theme switch
+        {
+            "Light" => Avalonia.Styling.ThemeVariant.Light,
+            "Dark"  => Avalonia.Styling.ThemeVariant.Dark,
+            _        => Avalonia.Styling.ThemeVariant.Default
+        };
     }
 
     public void ApplyAutostart(AppConfig cfg)

@@ -9,6 +9,7 @@ public sealed class GeneralTabViewModel
     public bool AutoStartOnLogin { get; set; }
     public bool StartMinimizedToTray { get; set; }
     public string Theme { get; set; } = "System";
+    public string[] Themes { get; } = { "System", "Light", "Dark" };
 
     public GeneralTabViewModel(AppConfig cfg)
     {

@@ -35,6 +35,7 @@ public partial class SettingsWindow : Window
         {
             app.ApplyAutostart(cfg);
             app.ApplyHotkey(cfg);
+            app.ApplyTheme(cfg);
         }
     }
 }
