@@ -73,7 +73,7 @@ public partial class App : Application
                 Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
                 _pump?.Dispose();
                 power.Stop();
-                Services.GetRequiredService<IGlobalHotkeyService>().Unregister();
+                (Services.GetRequiredService<IGlobalHotkeyService>() as IDisposable)?.Dispose();
             };
 
             _log.Log("INFO", "Initialization complete");
