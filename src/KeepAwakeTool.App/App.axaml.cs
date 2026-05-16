@@ -67,6 +67,27 @@ public partial class App : Application
             ApplyAutostart(configProvider());
             ApplyHotkey(configProvider());
 
+            // Toast notifications (§10.1): wire after UI is ready so Show() can access Screens.
+            var toasts = Services.GetRequiredService<KeepAwakeTool.App.Notifications.ToastService>();
+
+            // Hotkey-registration failure (raised from pump thread; ToastService self-marshals).
+            Services.GetRequiredService<IGlobalHotkeyService>().RegistrationResult += ok =>
+            {
+                if (!ok)
+                {
+                    var combo = configProvider().Hotkey.Combination;
+                    toasts.Show($"Hotkey '{combo}' could not be registered. It may already be in use by another application.");
+                }
+            };
+
+            // Corrupt config — startup (LastCorruptBackupPath set before UI existed).
+            if (store.LastCorruptBackupPath is { } startupBackup)
+                toasts.Show($"config.json was unreadable and has been reset to defaults. A backup was saved as: {System.IO.Path.GetFileName(startupBackup)}");
+
+            // Corrupt config — runtime (FSW reload while app is running).
+            store.CorruptQuarantined += b =>
+                toasts.Show($"config.json became unreadable and was reset to defaults. Backup: {System.IO.Path.GetFileName(b)}");
+
             desktop.Exit += (_, _) =>
             {
                 _log?.Log("INFO", "Shutting down");
