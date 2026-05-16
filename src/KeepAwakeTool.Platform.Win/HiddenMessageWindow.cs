@@ -8,8 +8,12 @@ namespace KeepAwakeTool.Platform.Win;
 internal sealed class HiddenMessageWindow : IDisposable
 {
     private const string ClassName = "KeepAwakeTool.HiddenMessageWindow";
+    private const uint WM_APP_REGISTER   = 0x8000 + 1; // WM_APP+1
+    private const uint WM_APP_UNREGISTER = 0x8000 + 2; // WM_APP+2
+
     private readonly WndProcDelegate _wndProc;
     private readonly Thread _pumpThread;
+    private readonly Action<string, string>? _log;
     private IntPtr _hwnd;
     private bool _disposed;
 
@@ -39,8 +43,9 @@ internal sealed class HiddenMessageWindow : IDisposable
     private uint _pumpThreadId;
     private readonly ManualResetEventSlim _ready = new(false);
 
-    public HiddenMessageWindow()
+    public HiddenMessageWindow(Action<string, string>? log = null)
     {
+        _log = log;
         _wndProc = WndProc;
         _pumpThread = new Thread(Pump) { IsBackground = true, Name = "KAT-HotkeyPump" };
         _pumpThread.Start();
@@ -48,6 +53,18 @@ internal sealed class HiddenMessageWindow : IDisposable
     }
 
     public IntPtr Handle => _hwnd;
+
+    /// <summary>
+    /// Request RegisterHotKey on the pump thread (safe to call from any thread).
+    /// </summary>
+    public void RequestRegister(int id, uint mods, uint vk)
+        => User32.PostMessageW(_hwnd, WM_APP_REGISTER, (nint)id, (nint)((vk << 16) | mods));
+
+    /// <summary>
+    /// Request UnregisterHotKey on the pump thread (safe to call from any thread).
+    /// </summary>
+    public void RequestUnregister(int id)
+        => User32.PostMessageW(_hwnd, WM_APP_UNREGISTER, (nint)id, 0);
 
     private void Pump()
     {
@@ -63,7 +80,25 @@ internal sealed class HiddenMessageWindow : IDisposable
             // WM_HOTKEY is a thread message (msg.hwnd == NULL): DispatchMessage
             // will NOT route it to WndProc, so handle it directly here.
             if (msg.message == User32.WM_HOTKEY)
+            {
                 HotkeyPressed?.Invoke((int)msg.wParam);
+            }
+            else if (msg.message == WM_APP_REGISTER)
+            {
+                int id = (int)msg.wParam;
+                uint packed = (uint)(long)msg.lParam;
+                uint mods = packed & 0xFFFF;
+                uint vk = (packed >> 16) & 0xFFFF;
+                bool ok = User32.RegisterHotKey(_hwnd, id, mods, vk);
+                _log?.Invoke(ok ? "INFO" : "ERROR",
+                    ok ? $"RegisterHotKey ok id={id} mods=0x{mods:X} vk=0x{vk:X}"
+                       : $"RegisterHotKey FAILED id={id} mods=0x{mods:X} vk=0x{vk:X} err={Marshal.GetLastWin32Error()}");
+            }
+            else if (msg.message == WM_APP_UNREGISTER)
+            {
+                User32.UnregisterHotKey(_hwnd, (int)msg.wParam);
+                _log?.Invoke("INFO", $"UnregisterHotKey id={(int)msg.wParam}");
+            }
 
             TranslateMessage(ref msg);
             DispatchMessageW(ref msg);

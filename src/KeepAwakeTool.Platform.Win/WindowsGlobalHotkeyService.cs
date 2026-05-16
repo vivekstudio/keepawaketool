@@ -7,15 +7,27 @@ namespace KeepAwakeTool.Platform.Win;
 public sealed class WindowsGlobalHotkeyService : IGlobalHotkeyService, IDisposable
 {
     private const int HotkeyId = 1;
+    private readonly Action<string, string>? _log;
     private HiddenMessageWindow? _window;
     private Action? _callback;
+    private bool _registered;
+
+    public WindowsGlobalHotkeyService(Action<string, string>? log = null) => _log = log;
+
+    private HiddenMessageWindow EnsureWindow()
+    {
+        if (_window is null)
+        {
+            _window = new HiddenMessageWindow(_log);
+            _window.HotkeyPressed += id => { if (id == HotkeyId) _callback?.Invoke(); };
+        }
+        return _window;
+    }
 
     public bool TryRegister(Hotkey hotkey, Action onPressed)
     {
-        Unregister();
-        _window = new HiddenMessageWindow();
-        _window.HotkeyPressed += id => { if (id == HotkeyId) _callback?.Invoke(); };
-        _callback = onPressed;
+        var vk = MapKey(hotkey.Key);
+        if (vk == 0) { _log?.Invoke("ERROR", $"Hotkey key not mappable: '{hotkey.Key}'"); return false; }
 
         uint mods =
             (hotkey.Modifiers.HasFlag(HotkeyModifiers.Ctrl)  ? User32.MOD_CONTROL : 0u) |
@@ -23,24 +35,31 @@ public sealed class WindowsGlobalHotkeyService : IGlobalHotkeyService, IDisposab
             (hotkey.Modifiers.HasFlag(HotkeyModifiers.Shift) ? User32.MOD_SHIFT   : 0u) |
             (hotkey.Modifiers.HasFlag(HotkeyModifiers.Win)   ? User32.MOD_WIN     : 0u);
 
-        var vk = MapKey(hotkey.Key);
-        if (vk == 0) { Dispose(); return false; }
-
-        var ok = User32.RegisterHotKey(_window.Handle, HotkeyId, mods, vk);
-        if (!ok) { Dispose(); return false; }
-        return true;
+        _callback = onPressed;
+        var win = EnsureWindow();
+        if (_registered) win.RequestUnregister(HotkeyId);
+        win.RequestRegister(HotkeyId, mods, vk);
+        _registered = true;
+        _log?.Invoke("INFO", $"Hotkey register requested mods=0x{mods:X} vk=0x{vk:X}");
+        return true; // actual RegisterHotKey result is logged from the pump thread
     }
 
     public void Unregister()
     {
-        if (_window is null) return;
-        User32.UnregisterHotKey(_window.Handle, HotkeyId);
-        _window.Dispose();
-        _window = null;
+        if (_window is null || !_registered) return;
+        _window.RequestUnregister(HotkeyId);
+        _registered = false;
         _callback = null;
+        _log?.Invoke("INFO", "Hotkey unregister requested");
     }
 
-    public void Dispose() => Unregister();
+    public void Dispose()
+    {
+        _window?.Dispose();
+        _window = null;
+        _registered = false;
+        _callback = null;
+    }
 
     private static uint MapKey(string key) => key.ToUpperInvariant() switch
     {
