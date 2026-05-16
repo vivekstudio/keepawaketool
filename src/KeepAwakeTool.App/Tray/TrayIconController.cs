@@ -15,6 +15,7 @@ public sealed class TrayIconController
     private readonly IServiceProvider _sp;
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
+    private NativeMenuItem? _pauseItem;
 
     public TrayIconController(IServiceProvider sp) => _sp = sp;
 
@@ -37,10 +38,10 @@ public sealed class TrayIconController
     private NativeMenu BuildMenu()
     {
         var menu = new NativeMenu();
-        var pause = new NativeMenuItem("Pause");
-        pause.Click += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(
+        _pauseItem = new NativeMenuItem("Pause");
+        _pauseItem.Click += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(
             () => _sp.GetRequiredService<Scheduler>().TogglePause());
-        menu.Add(pause);
+        menu.Add(_pauseItem);
         menu.Add(new NativeMenuItemSeparator());
         var settings = new NativeMenuItem("Settings…");
         settings.Click += (_, _) => OpenSettings();
@@ -78,5 +79,7 @@ public sealed class TrayIconController
         using var stream = AssetLoader.Open(new Uri(asset));
         _tray.Icon = new WindowIcon(stream);
         _tray.ToolTipText = $"KeepAwakeTool — {state}";
+        if (_pauseItem is not null)
+            _pauseItem.Header = state == EngineState.Paused ? "Resume" : "Pause";
     }
 }
