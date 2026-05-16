@@ -105,8 +105,8 @@ public sealed class TrayIconController
 
     private void TogglePower(bool s1)
     {
+        var cfg = _sp.GetRequiredService<Func<AppConfig>>()();
         var store = _sp.GetRequiredService<ConfigurationStore>();
-        var cfg = store.Load();
         var power = s1
             ? cfg.Power with { ForceDisplayOffAfterInjection = !cfg.Power.ForceDisplayOffAfterInjection }
             : cfg.Power with { PowerSaveMode = !cfg.Power.PowerSaveMode };
@@ -166,11 +166,10 @@ public sealed class TrayIconController
         _flashing = true;
         try
         {
-            var prev = _tray.Icon;
             using (var s = AssetLoader.Open(new Uri("avares://KeepAwakeTool/Tray/Assets/icon-heartbeat.ico")))
                 _tray.Icon = new WindowIcon(s);
             await Task.Delay(160);
-            _tray.Icon = prev;
+            UpdateIcon(_sp.GetRequiredService<Scheduler>().State);
         }
         finally { _flashing = false; }
     }
