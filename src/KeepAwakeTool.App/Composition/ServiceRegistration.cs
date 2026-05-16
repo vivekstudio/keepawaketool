@@ -45,7 +45,11 @@ public static class ServiceRegistration
         services.AddSingleton<IIdleMonitor, WindowsIdleMonitor>();
         services.AddSingleton<IPowerManager, WindowsPowerManager>();
         services.AddSingleton<IAutoStartManager>(_ => new WindowsAutoStartManager(exePath));
-        services.AddSingleton<IGlobalHotkeyService, WindowsGlobalHotkeyService>();
+        services.AddSingleton<IGlobalHotkeyService>(sp =>
+        {
+            var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
+            return new WindowsGlobalHotkeyService((level, msg) => fl.Log(level, msg));
+        });
 
         services.AddSingleton<ActivityEngine>(sp => new ActivityEngine(
             sp.GetRequiredService<IInputSimulator>(),
