@@ -20,6 +20,8 @@ public sealed class ActivityEngine
         _input = input; _idle = idle; _power = power; _clock = clock; _config = config;
     }
 
+    public event Action? Injected;
+
     public AppConfig Config => _config;
     public long TickCount => _tickCount;
     public bool HotkeyPaused { get; set; }
@@ -37,6 +39,7 @@ public sealed class ActivityEngine
         if (_idle.TimeSinceLastUserInput() < TimeSpan.FromSeconds(_config.Activity.IdleThresholdSeconds)) return;
 
         _input.MoveMouse(_config.Activity.Mouse.Mode, _config.Activity.Mouse.JigglePixels);
+        Injected?.Invoke();
 
         if (_config.Activity.Keystroke.Enabled && (_tickCount % _config.Activity.Keystroke.EveryNthCycle == 0))
             _input.SendKey(_config.Activity.Keystroke.Key);
