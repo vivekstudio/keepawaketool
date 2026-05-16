@@ -53,6 +53,8 @@ public sealed class TrayIconController
         return menu;
     }
 
+    public void ShowSettings() => OpenSettings();
+
     private void OpenSettings()
     {
         if (_settingsWindow is null || !_settingsWindow.IsVisible)

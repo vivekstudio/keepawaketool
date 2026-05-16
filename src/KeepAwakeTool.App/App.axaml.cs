@@ -37,6 +37,9 @@ public partial class App : Application
             Tray.Initialize();
             ApplyTheme(configProvider());
 
+            if (!configProvider().Startup.StartMinimizedToTray)
+                Tray.ShowSettings();
+
             _pump = new EnginePump(Services, Services.GetRequiredService<Core.Diagnostics.FileLogger>());
             _pump.Start();
 
