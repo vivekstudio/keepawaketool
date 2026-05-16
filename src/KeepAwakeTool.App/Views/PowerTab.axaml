@@ -8,7 +8,7 @@
         <StackPanel Spacing="4">
             <CheckBox Content="Force display off after each injection (S1)" IsChecked="{Binding Power.ForceDisplayOffAfterInjection}"/>
             <TextBlock TextWrapping="Wrap" Foreground="Gray"
-                       Text="When enabled, after each synthetic input the display is turned off ~200 ms later. Causes a brief 'blink' each interval. Default OFF."/>
+                       Text="When enabled, the display is forced off ~200 ms after each synthetic input. Injections (and the first display-off) start only after you have been idle for the smart-pause threshold (General tab, default 30 s), then the display briefly wakes and re-sleeps on every interval. It does not stay off continuously while presence is kept active. Default OFF."/>
         </StackPanel>
         <StackPanel Spacing="4">
             <CheckBox Content="Power-Save Mode (S3) — disables presence injection" IsChecked="{Binding Power.PowerSaveMode}"/>
