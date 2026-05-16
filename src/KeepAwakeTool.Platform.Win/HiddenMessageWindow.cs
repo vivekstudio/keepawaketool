@@ -60,6 +60,11 @@ internal sealed class HiddenMessageWindow : IDisposable
 
         while (GetMessageW(out var msg, IntPtr.Zero, 0, 0) > 0)
         {
+            // WM_HOTKEY is a thread message (msg.hwnd == NULL): DispatchMessage
+            // will NOT route it to WndProc, so handle it directly here.
+            if (msg.message == User32.WM_HOTKEY)
+                HotkeyPressed?.Invoke((int)msg.wParam);
+
             TranslateMessage(ref msg);
             DispatchMessageW(ref msg);
         }
@@ -72,10 +77,7 @@ internal sealed class HiddenMessageWindow : IDisposable
     }
 
     private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
-    {
-        if (msg == User32.WM_HOTKEY) { HotkeyPressed?.Invoke((int)wParam); return IntPtr.Zero; }
-        return DefWindowProcW(hWnd, msg, wParam, lParam);
-    }
+        => DefWindowProcW(hWnd, msg, wParam, lParam);
 
     public void Dispose()
     {
