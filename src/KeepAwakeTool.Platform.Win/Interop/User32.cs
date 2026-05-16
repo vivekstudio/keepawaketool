@@ -13,6 +13,9 @@ internal static class User32
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern nint SendMessageW(nint hWnd, uint Msg, nint wParam, nint lParam);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern nint SendMessageTimeoutW(nint hWnd, uint Msg, nint wParam, nint lParam, uint fuFlags, uint uTimeout, out nint lpdwResult);
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool PostMessageW(nint hWnd, uint Msg, nint wParam, nint lParam);
 
@@ -25,6 +28,7 @@ internal static class User32
     public const uint WM_SYSCOMMAND  = 0x0112;
     public const int  SC_MONITORPOWER = 0xF170;
     public static readonly nint HWND_BROADCAST = new(0xFFFF);
+    public const uint SMTO_ABORTIFHUNG = 0x0002;
 
     public const uint MOD_ALT     = 0x0001;
     public const uint MOD_CONTROL = 0x0002;
