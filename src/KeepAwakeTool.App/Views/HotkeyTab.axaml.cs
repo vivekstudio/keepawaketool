@@ -76,6 +76,14 @@ public partial class HotkeyTab : UserControl
     {
         if (!_capturing) return;
 
+        // Escape cancels capture and restores the previous combination.
+        if (e.Key == Avalonia.Input.Key.Escape)
+        {
+            ExitCapture(commit: false);
+            e.Handled = true;
+            return;
+        }
+
         e.Handled = true; // always consume while capturing
 
         // Skip pure modifier key-presses — wait for the main key.

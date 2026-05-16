@@ -29,6 +29,8 @@ public sealed class HotkeyTabViewModel : ObservableObject
         {
             >= Avalonia.Input.Key.A and <= Avalonia.Input.Key.Z => key.ToString(),                 // "A".."Z"
             >= Avalonia.Input.Key.D0 and <= Avalonia.Input.Key.D9 => ((int)(key - Avalonia.Input.Key.D0)).ToString(), // "0".."9"
+            // NumPad digits intentionally collapse to the same token as top-row digits ("0".."9");
+            // WindowsGlobalHotkeyService.MapKey treats them identically so no ambiguity arises.
             >= Avalonia.Input.Key.NumPad0 and <= Avalonia.Input.Key.NumPad9 => ((int)(key - Avalonia.Input.Key.NumPad0)).ToString(),
             >= Avalonia.Input.Key.F1 and <= Avalonia.Input.Key.F12 => key.ToString(),              // "F1".."F12"
             _ => null
