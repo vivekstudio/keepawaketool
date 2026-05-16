@@ -45,6 +45,7 @@ public static class ServiceRegistration
         services.AddSingleton<IIdleMonitor, WindowsIdleMonitor>();
         services.AddSingleton<IPowerManager, WindowsPowerManager>();
         services.AddSingleton<IAutoStartManager>(_ => new WindowsAutoStartManager(exePath));
+        services.AddSingleton<ISessionInfo, WindowsSessionInfo>();
         services.AddSingleton<IGlobalHotkeyService>(sp =>
         {
             var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();

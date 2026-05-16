@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using KeepAwakeTool.Core.Activity;
+using KeepAwakeTool.Core.Diagnostics;
+using KeepAwakeTool.Core.Platform;
 using KeepAwakeTool.Core.Scheduling;
 using KeepAwakeTool.App.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +18,7 @@ public sealed class TrayIconController
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
     private NativeMenuItem? _pauseItem;
+    private bool _remote;
 
     public TrayIconController(IServiceProvider sp) => _sp = sp;
 
@@ -23,6 +26,13 @@ public sealed class TrayIconController
     {
         var scheduler = _sp.GetRequiredService<Scheduler>();
         scheduler.StateChanged += (_, state) => Dispatcher.UIThread.Post(() => UpdateIcon(state));
+
+        _remote = _sp.GetRequiredService<ISessionInfo>().IsRemoteSession;
+        if (_remote)
+        {
+            var logger = _sp.GetRequiredService<FileLogger>();
+            logger.Log("INFO", "Remote session detected — S1 display-off is not meaningful over RDP");
+        }
 
         _tray = new TrayIcon
         {
@@ -80,7 +90,8 @@ public sealed class TrayIconController
         };
         using var stream = AssetLoader.Open(new Uri(asset));
         _tray.Icon = new WindowIcon(stream);
-        _tray.ToolTipText = $"KeepAwakeTool — {state}";
+        var suffix = _remote ? " — RDP: display-off limited" : "";
+        _tray.ToolTipText = $"KeepAwakeTool — {state}{suffix}";
         if (_pauseItem is not null)
             _pauseItem.Header = state == EngineState.Paused ? "Resume" : "Pause";
     }
