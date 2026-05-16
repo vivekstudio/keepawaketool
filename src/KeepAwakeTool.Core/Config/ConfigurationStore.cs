@@ -22,6 +22,20 @@ public sealed class ConfigurationStore
     private FileSystemWatcher? _watcher;
     public event EventHandler<AppConfig>? Changed;
 
+    /// <summary>
+    /// Set after a corrupt config.json is quarantined during <see cref="Load"/>.
+    /// Non-null only when the most recent Load() quarantined a file.
+    /// Useful for startup-time detection (before UI exists).
+    /// </summary>
+    public string? LastCorruptBackupPath { get; private set; }
+
+    /// <summary>
+    /// Raised after a corrupt config.json is quarantined during a runtime reload.
+    /// Argument is the backup path. Raised on the FSW thread; subscribers are responsible
+    /// for marshalling to the UI thread if required.
+    /// </summary>
+    public event Action<string>? CorruptQuarantined;
+
     public void StartWatching()
     {
         if (_watcher is not null) return;
@@ -96,6 +110,12 @@ public sealed class ConfigurationStore
     private void QuarantineCorrupt()
     {
         var backup = $"{_path}.corrupt.{DateTime.UtcNow:yyyyMMddHHmmss}.json";
-        try { File.Move(_path, backup); } catch { /* best effort */ }
+        try
+        {
+            File.Move(_path, backup);
+            LastCorruptBackupPath = backup;
+            try { CorruptQuarantined?.Invoke(backup); } catch { /* best effort: subscriber exception must not break Load */ }
+        }
+        catch { /* best effort */ }
     }
 }

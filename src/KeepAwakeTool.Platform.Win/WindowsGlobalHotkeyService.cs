@@ -12,13 +12,16 @@ public sealed class WindowsGlobalHotkeyService : IGlobalHotkeyService, IDisposab
     private Action? _callback;
     private bool _registered;
 
+    /// <inheritdoc />
+    public event Action<bool>? RegistrationResult;
+
     public WindowsGlobalHotkeyService(Action<string, string>? log = null) => _log = log;
 
     private HiddenMessageWindow EnsureWindow()
     {
         if (_window is null)
         {
-            _window = new HiddenMessageWindow(_log);
+            _window = new HiddenMessageWindow(_log, ok => RegistrationResult?.Invoke(ok));
             _window.HotkeyPressed += id => { if (id == HotkeyId) _callback?.Invoke(); };
         }
         return _window;

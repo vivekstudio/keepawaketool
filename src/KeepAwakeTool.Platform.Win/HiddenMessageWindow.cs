@@ -14,6 +14,7 @@ internal sealed class HiddenMessageWindow : IDisposable
     private readonly WndProcDelegate _wndProc;
     private readonly Thread _pumpThread;
     private readonly Action<string, string>? _log;
+    private readonly Action<bool>? _onRegisterResult;
     private IntPtr _hwnd;
     private bool _disposed;
 
@@ -43,9 +44,10 @@ internal sealed class HiddenMessageWindow : IDisposable
     private uint _pumpThreadId;
     private readonly ManualResetEventSlim _ready = new(false);
 
-    public HiddenMessageWindow(Action<string, string>? log = null)
+    public HiddenMessageWindow(Action<string, string>? log = null, Action<bool>? onRegisterResult = null)
     {
         _log = log;
+        _onRegisterResult = onRegisterResult;
         _wndProc = WndProc;
         _pumpThread = new Thread(Pump) { IsBackground = true, Name = "KAT-HotkeyPump" };
         _pumpThread.Start();
@@ -93,6 +95,7 @@ internal sealed class HiddenMessageWindow : IDisposable
                 _log?.Invoke(ok ? "INFO" : "ERROR",
                     ok ? $"RegisterHotKey ok id={id} mods=0x{mods:X} vk=0x{vk:X}"
                        : $"RegisterHotKey FAILED id={id} mods=0x{mods:X} vk=0x{vk:X} err={Marshal.GetLastWin32Error()}");
+                try { _onRegisterResult?.Invoke(ok); } catch { /* best effort */ }
             }
             else if (msg.message == WM_APP_UNREGISTER)
             {
