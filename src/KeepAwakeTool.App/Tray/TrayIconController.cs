@@ -40,6 +40,7 @@ public sealed class TrayIconController
             IsVisible = true,
             Menu = BuildMenu()
         };
+        _tray.Clicked += (_, _) => Dispatcher.UIThread.Post(OpenSettings);
         TrayIcon.SetIcons(Application.Current!, new TrayIcons { _tray });
         UpdateIcon(scheduler.State);
         scheduler.Start();
