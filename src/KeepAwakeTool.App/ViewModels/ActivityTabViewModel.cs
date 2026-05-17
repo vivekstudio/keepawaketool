@@ -37,7 +37,7 @@ public sealed class ActivityTabViewModel : ObservableObject
         EveryNthCycle = cfg.Activity.Keystroke.EveryNthCycle;
     }
 
-    // Note: IntervalSeconds/IdleThresholdSeconds are owned by the General tab and
+    // Note: IntervalSeconds is owned by the General tab and
     // merged into the Activity section by SettingsViewModel.BuildConfig().
     public ActivityConfig Build() => new()
     {

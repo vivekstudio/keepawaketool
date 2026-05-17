@@ -22,15 +22,6 @@ public class ConfigClampingTests
     }
 
     [Fact]
-    public void IdleThresholdSeconds_outside_range_is_clamped()
-    {
-        var low  = new AppConfig { Activity = new ActivityConfig { IdleThresholdSeconds = 0 } };
-        var high = new AppConfig { Activity = new ActivityConfig { IdleThresholdSeconds = 99_999 } };
-        ConfigClamping.Sanitize(low).Activity.IdleThresholdSeconds.Should().Be(5);
-        ConfigClamping.Sanitize(high).Activity.IdleThresholdSeconds.Should().Be(120);
-    }
-
-    [Fact]
     public void JigglePixels_below_minimum_becomes_1()
     {
         var input = new AppConfig

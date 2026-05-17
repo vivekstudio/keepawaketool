@@ -13,7 +13,7 @@ public sealed class ActivityEngine
     private readonly IPowerManager _power;
     private readonly IClock _clock;
     private AppConfig _config;
-    private long _tickCount;
+    private long _injectionCount;
 
     public ActivityEngine(IInputSimulator input, IIdleMonitor idle, IPowerManager power, IClock clock, AppConfig config)
     {
@@ -23,7 +23,6 @@ public sealed class ActivityEngine
     public event Action? Injected;
 
     public AppConfig Config => _config;
-    public long TickCount => _tickCount;
     public bool HotkeyPaused { get; set; }
     public bool WithinWorkingHours { get; set; } = true;
 
@@ -31,17 +30,16 @@ public sealed class ActivityEngine
 
     public async Task TickAsync(CancellationToken ct)
     {
-        _tickCount++;
-
         if (_config.Power.PowerSaveMode) return;
         if (!WithinWorkingHours) return;
         if (HotkeyPaused) return;
-        if (_idle.TimeSinceLastUserInput() < TimeSpan.FromSeconds(_config.Activity.IdleThresholdSeconds)) return;
+        if (_idle.TimeSinceLastUserInput() < TimeSpan.FromSeconds(_config.Activity.IntervalSeconds)) return;
 
         _input.MoveMouse(_config.Activity.Mouse.Mode, _config.Activity.Mouse.JigglePixels);
+        _injectionCount++;
         Injected?.Invoke();
 
-        if (_config.Activity.Keystroke.Enabled && (_tickCount % _config.Activity.Keystroke.EveryNthCycle == 0))
+        if (_config.Activity.Keystroke.Enabled && (_injectionCount % _config.Activity.Keystroke.EveryNthCycle == 0))
             _input.SendKey(_config.Activity.Keystroke.Key);
 
         if (_config.Power.ForceDisplayOffAfterInjection)

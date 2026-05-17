@@ -149,22 +149,9 @@ public sealed class TrayIconController
         if (state == EngineState.Running)
         {
             var idle = _sp.GetRequiredService<IIdleMonitor>().TimeSinceLastUserInput();
-            var thresholdSec = _sp.GetRequiredService<Func<AppConfig>>()().Activity.IdleThresholdSeconds;
-            if (idle < TimeSpan.FromSeconds(thresholdSec))
-            {
-                // User is active: smart-pause will skip injection on upcoming ticks,
-                // so a tick countdown would be misleading. Show the real situation.
-                text += " — active, resumes when idle";
-            }
-            else
-            {
-                var next = _sp.GetRequiredService<EnginePump>().NextTickUtc;
-                if (next is { } n)
-                {
-                    var secs = (int)Math.Max(0, (n - DateTimeOffset.UtcNow).TotalSeconds);
-                    text += $" — next activity in {secs}s";
-                }
-            }
+            var interval = _sp.GetRequiredService<Func<AppConfig>>()().Activity.IntervalSeconds;
+            var secs = (int)Math.Max(0, interval - idle.TotalSeconds);
+            text += $" — next activity in {secs}s";
         }
         _tray.ToolTipText = text;
     }

@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using KeepAwakeTool.Core.Config;
 using KeepAwakeTool.Core.Diagnostics;
 using KeepAwakeTool.Core.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,8 +15,6 @@ public sealed class EnginePump : IDisposable
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private bool _disposed;
-
-    public DateTimeOffset? NextTickUtc { get; private set; }
 
     public EnginePump(IServiceProvider sp, FileLogger logger)
     {
@@ -34,13 +31,9 @@ public sealed class EnginePump : IDisposable
 
     private async Task RunAsync(CancellationToken ct)
     {
-        var configProvider = _sp.GetRequiredService<Func<AppConfig>>();
         while (!ct.IsCancellationRequested)
         {
-            var cfg = configProvider();
-            var interval = TimeSpan.FromSeconds(Math.Max(10, cfg.Activity.IntervalSeconds));
-            NextTickUtc = DateTimeOffset.UtcNow + interval;
-            try { await Task.Delay(interval, ct); }
+            try { await Task.Delay(TimeSpan.FromSeconds(1), ct); }
             catch (OperationCanceledException) { break; }
             await RunTickSafelyAsync(_scheduler.RunOneTickAsync, _logger, ct);
         }

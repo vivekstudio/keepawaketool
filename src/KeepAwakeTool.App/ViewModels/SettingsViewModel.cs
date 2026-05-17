@@ -26,8 +26,7 @@ public sealed class SettingsViewModel
     {
         Activity = Activity.Build() with
         {
-            IntervalSeconds = General.IntervalSeconds,
-            IdleThresholdSeconds = General.IdleThresholdSeconds
+            IntervalSeconds = General.IntervalSeconds
         },
         Power    = Power.Build(),
         Schedule = Schedule.Build(),

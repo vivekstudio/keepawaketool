@@ -6,8 +6,7 @@ public static class ConfigClamping
     {
         Activity = input.Activity with
         {
-            IntervalSeconds      = Clamp(input.Activity.IntervalSeconds, 10, 240),
-            IdleThresholdSeconds = Clamp(input.Activity.IdleThresholdSeconds, 5, 120),
+            IntervalSeconds = Clamp(input.Activity.IntervalSeconds, 10, 240),
             Mouse = input.Activity.Mouse with
             {
                 JigglePixels = Clamp(input.Activity.Mouse.JigglePixels, 1, 10)

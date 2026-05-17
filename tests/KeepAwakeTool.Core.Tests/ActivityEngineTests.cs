@@ -30,12 +30,21 @@ public class ActivityEngineTests
     }
 
     [Fact]
-    public async Task Tick_skips_when_user_recently_active()
+    public async Task Tick_skips_when_idle_below_interval()
     {
-        _idle.Value = TimeSpan.FromSeconds(5);   // less than default 30s threshold
+        _idle.Value = TimeSpan.FromSeconds(30);  // less than default 60s interval
         var engine = BuildEngine();
         await engine.TickAsync(CancellationToken.None);
         _input.MouseMoves.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Tick_injects_when_idle_equals_interval()
+    {
+        _idle.Value = TimeSpan.FromSeconds(60);  // exactly the default 60s interval
+        var engine = BuildEngine();
+        await engine.TickAsync(CancellationToken.None);
+        _input.MouseMoves.Should().ContainSingle();
     }
 
     [Fact]

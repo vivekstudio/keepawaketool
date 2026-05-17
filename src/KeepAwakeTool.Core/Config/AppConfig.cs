@@ -18,7 +18,6 @@ public sealed record AppConfig
 public sealed record ActivityConfig
 {
     public int IntervalSeconds { get; init; } = 60;
-    public int IdleThresholdSeconds { get; init; } = 30;
     public MouseConfig Mouse { get; init; } = new();
     public KeystrokeConfig Keystroke { get; init; } = new();
 }

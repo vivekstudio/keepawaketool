@@ -6,12 +6,8 @@
     <ScrollViewer>
     <StackPanel Margin="15" Spacing="12">
         <StackPanel Spacing="4">
-            <TextBlock Text="Interval (seconds)"/>
+            <TextBlock Text="Keep-alive interval (seconds) — idle time before injection and repeat cadence"/>
             <NumericUpDown Minimum="10" Maximum="240" Increment="5" Value="{Binding General.IntervalSeconds}"/>
-        </StackPanel>
-        <StackPanel Spacing="4">
-            <TextBlock Text="Smart-pause idle threshold (seconds)"/>
-            <NumericUpDown Minimum="5" Maximum="120" Increment="5" Value="{Binding General.IdleThresholdSeconds}"/>
         </StackPanel>
         <CheckBox Content="Start with Windows" IsChecked="{Binding General.AutoStartOnLogin}"/>
         <CheckBox Content="Start minimized to tray" IsChecked="{Binding General.StartMinimizedToTray}"/>
