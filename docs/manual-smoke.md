@@ -23,10 +23,12 @@ Run after each release build (`dotnet publish -c Release -r win-x64 --self-conta
 2. Do not touch keyboard/mouse for 15 minutes.
 3. Expect: Teams status stays "Available" throughout.
 
-## 3. Smart-pause
-1. Open Settings → General; verify idle threshold is 30 s.
-2. Watch a clock; type a single key, then wait.
-3. Expect: no synthetic activity for at least 30 s after your keystroke (no cursor twitches, no F-key event in a key logger if instrumented).
+## 3. Idle-anchored countdown
+1. Open Settings → General; note the keep-alive interval (default 60 s).
+2. Move the mouse; observe the tray tooltip — it should show a countdown close to the full interval.
+3. Stop all input and wait.
+4. Expect: the tooltip countdown decrements only while you are idle; at zero a synthetic input fires and the countdown resets to the full interval.
+5. Move the mouse again; expect the countdown immediately resets toward the full interval and no injection occurs until idle ≥ interval.
 
 ## 4. S1 (Force display off)
 1. Settings → Power → enable "Force display off after each injection".

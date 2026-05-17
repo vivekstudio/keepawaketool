@@ -109,23 +109,26 @@ The DI container selects the Windows or macOS implementation at startup via `Run
 
 ## 6. Data Flow — Single Tick
 
-`ActivityEngine` tick (every `IntervalSeconds`):
+`ActivityEngine` is polled every ~1 s by `EnginePump`. The engine injects only when system idle ≥ `IntervalSeconds`:
 
 ```
-tick
- ├─ S3 (Power-Save) ON?              ──► return
- ├─ Schedule enabled && out of hours?──► return
- ├─ HotkeyPaused?                    ──► return
- ├─ IdleMonitor < IdleThreshold?     ──► return (smart pause)
+poll (every ~1 s)
+ ├─ S3 (Power-Save) ON?                             ──► return
+ ├─ Schedule enabled && out of hours?               ──► return
+ ├─ HotkeyPaused?                                   ──► return
+ ├─ IdleMonitor.TimeSinceLastUserInput < Interval?  ──► return (idle-anchored gate)
  ├─ InputSimulator.MoveMouse(config.MouseMode)
- ├─ if KeystrokeEnabled && (tickCount % EveryN == 0)
+ ├─ injectionCount++
+ ├─ if KeystrokeEnabled && (injectionCount % EveryN == 0)
  │     InputSimulator.SendKey(config.Key)
  ├─ if ForceDisplayOff (S1)
  │     await Task.Delay(200ms); PowerManager.ForceDisplayOff()
  └─ TrayIcon.FlashHeartbeat()        (if enabled in config)
 ```
 
-**Atomicity**: each tick awaits fully before the next is allowed. Config-change events cancel the current `PeriodicTimer` and restart with the new interval.
+**Idle-anchored cadence**: `SendInput` (synthetic mouse/key) also resets the OS idle timer (`GetLastInputInfo`). So gating injection on `idle >= IntervalSeconds` naturally produces: user stops → exactly `Interval` later the first keep-alive fires → then every `Interval` while still idle → any real input resets the clock. No separate threshold needed.
+
+**Atomicity**: each tick awaits fully before the next poll fires.
 
 ## 7. Tool-Level State Machine
 
@@ -161,8 +164,7 @@ Transitions: tray menu commands, global hotkey (Running ↔ Paused), S3 toggle (
 {
   "schemaVersion": 1,
   "activity": {
-    "intervalSeconds": 60,              // range 10..240
-    "idleThresholdSeconds": 30,         // smart-pause threshold (5..120)
+    "intervalSeconds": 60,              // idle seconds before first injection and repeat cadence (10..240)
     "mouse": {
       "mode": "Invisible",              // "Invisible" | "Jiggle"
       "jigglePixels": 1                 // 1..10, used only when mode=Jiggle
@@ -234,7 +236,7 @@ Transitions: tray menu commands, global hotkey (Running ↔ Paused), S3 toggle (
 
 Fixed size ~600×450, five tabs:
 
-1. **General** — interval slider (10s–4min), idle threshold (5s–120s), startup options, theme.
+1. **General** — interval slider (10s–4min, idle seconds before injection and repeat cadence), startup options, theme.
 2. **Activity** — mouse mode radio (Invisible / Jiggle); jiggle pixel count (visible only when Jiggle); keystroke block (enabled, key dropdown F13/F14/F15, every-Nth cycle numeric).
 3. **Power** — two toggles with short explainers: "Force display off after each injection (S1)" and "Power-Save Mode (S3) — disables presence injection".
 4. **Schedule** — enabled checkbox; time-range picker; weekday checkboxes (visible only when enabled).
@@ -275,13 +277,13 @@ If Accessibility permission missing, modal explains why the app needs it, a butt
 ## 11. Testing Approach
 
 - **Unit tests** (Core, no platform deps) — `ActivityEngineTests` against fake `IInputSimulator` / `IIdleMonitor` / `IPowerManager`:
-  - Smart-pause skip when `TimeSinceLastUserInput < IdleThreshold`.
+  - Idle-anchored gate: no injection when `TimeSinceLastUserInput < IntervalSeconds`; injects when `>= IntervalSeconds`.
   - S3 ON ⇒ no injection.
   - Working-hours window respected.
   - Hotkey-paused state respected.
-  - Keystroke fires only every Nth tick.
+  - Keystroke fires only every Nth *injection* (not every Nth poll).
   - S1 ⇒ `ForceDisplayOff` called ~200 ms after injection.
-  - Config-change events restart timer with new interval.
+  - Config-change events are picked up on the next poll.
 - **Platform integration tests** (Windows; macOS in v2) — gated by `[Trait("Category", "PlatformIntegration")]`:
   - `WindowsInputSimulator.SendInput` returns success codes.
   - `WindowsIdleMonitor` returns plausible `TimeSpan` for known idle states.
@@ -303,7 +305,7 @@ If Accessibility permission missing, modal explains why the app needs it, a butt
 
 - App launches, tray icon appears, settings window opens, config persists across restart.
 - Default config (60 s interval, Invisible mouse, F15 every 3rd cycle, S1 OFF, S3 OFF) keeps Teams "Available" across 15 minutes of real idle on a Windows 11 laptop.
-- Smart-pause: typing real keystrokes for 5 seconds causes engine to skip the next tick.
+- Idle-anchored: typing real keystrokes resets the countdown; no injection occurs until the system has been idle for a full interval.
 - S1 toggle ON: display goes black within ~1 s of each injection tick; brief flash visible.
 - S3 toggle ON: tray icon turns red, no synthetic input occurs, system does not sleep.
 - Global hotkey (when enabled) toggles pause from any focused app.
