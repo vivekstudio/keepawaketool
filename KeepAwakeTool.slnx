@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KeepAwakeTool.App/KeepAwakeTool.App.csproj" />
+    <Project Path="src/KeepAwakeTool.Core/KeepAwakeTool.Core.csproj" />
+    <Project Path="src/KeepAwakeTool.Platform.Win/KeepAwakeTool.Platform.Win.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KeepAwakeTool.Core.Tests/KeepAwakeTool.Core.Tests.csproj" />
+    <Project Path="tests/KeepAwakeTool.App.Tests/KeepAwakeTool.App.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,28 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Publish output
+publish/
+out/
+
+# Rider/VS
+.idea/
+*.DotSettings.user
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Claude per-project local
+.claude/
+
+# Language server cache
+*.lscache

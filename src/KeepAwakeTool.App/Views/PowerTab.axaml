@@ -1,0 +1,20 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:KeepAwakeTool.App.ViewModels"
+             x:Class="KeepAwakeTool.App.Views.PowerTab"
+             x:DataType="vm:SettingsViewModel">
+    <ScrollViewer>
+    <StackPanel Margin="15" Spacing="14">
+        <StackPanel Spacing="4">
+            <CheckBox Content="Force display off after each injection (S1)" IsChecked="{Binding Power.ForceDisplayOffAfterInjection}"/>
+            <TextBlock TextWrapping="Wrap" Foreground="Gray"
+                       Text="When enabled, the display is forced off ~200 ms after each synthetic input. Injections start only after you have been idle for the keep-alive interval (General tab), then the display briefly wakes and re-sleeps on every interval. It does not stay off continuously while presence is kept active. Default OFF."/>
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <CheckBox Content="Power-Save Mode (S3) — disables presence injection" IsChecked="{Binding Power.PowerSaveMode}"/>
+            <TextBlock TextWrapping="Wrap" Foreground="Gray"
+                       Text="When enabled, the tool keeps the system from sleeping but does NOT inject input. Teams and similar apps will mark you as Away. Default OFF."/>
+        </StackPanel>
+    </StackPanel>
+    </ScrollViewer>
+</UserControl>

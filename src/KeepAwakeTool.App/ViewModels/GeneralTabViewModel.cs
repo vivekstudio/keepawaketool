@@ -1,0 +1,28 @@
+using KeepAwakeTool.Core.Config;
+
+namespace KeepAwakeTool.App.ViewModels;
+
+public sealed class GeneralTabViewModel
+{
+    public int IntervalSeconds { get; set; }
+    public bool AutoStartOnLogin { get; set; }
+    public bool StartMinimizedToTray { get; set; }
+    public string Theme { get; set; } = "System";
+    public string[] Themes { get; } = { "System", "Light", "Dark" };
+
+    public GeneralTabViewModel(AppConfig cfg)
+    {
+        IntervalSeconds = cfg.Activity.IntervalSeconds;
+        AutoStartOnLogin = cfg.Startup.AutoStartOnLogin;
+        StartMinimizedToTray = cfg.Startup.StartMinimizedToTray;
+        Theme = cfg.Ui.Theme;
+    }
+
+    public StartupConfig BuildStartup() => new()
+    {
+        AutoStartOnLogin = AutoStartOnLogin,
+        StartMinimizedToTray = StartMinimizedToTray
+    };
+
+    public UiConfig BuildUi() => new() { Theme = Theme };
+}
