@@ -10,6 +10,8 @@ public sealed class WindowsInputSimulator : IInputSimulator
 {
     private static readonly int InputSize = Marshal.SizeOf<INPUT>();
 
+    private int _jiggleSign = 1;
+
     public void MoveMouse(MouseMode mode, int jigglePixels)
     {
         if (mode == MouseMode.Invisible)
@@ -18,8 +20,15 @@ public sealed class WindowsInputSimulator : IInputSimulator
             return;
         }
 
-        SendMouseMove( jigglePixels, 0);
-        SendMouseMove(-jigglePixels, 0);
+        // Visible jiggle: a single relative hop that alternates direction on
+        // each injection. A +N-then-(-N) round-trip in one call nets to zero
+        // displacement, which Windows frequently coalesces and does NOT repaint
+        // for an inactive/hidden idle cursor — so steady-state injections were
+        // invisible. A single ±N move per injection always relocates the cursor
+        // (forcing a redraw → reliably visible) while oscillating within
+        // jigglePixels of the resting point, so it never drifts.
+        SendMouseMove(_jiggleSign * jigglePixels, 0);
+        _jiggleSign = -_jiggleSign;
     }
 
     public void SendKey(VirtualKey key)
