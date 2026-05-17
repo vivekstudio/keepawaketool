@@ -22,10 +22,12 @@ Presence-aware apps detect "Away" via the OS input-idle timer (`GetLastInputInfo
 
 This drives the user-visible feature set:
 
+Timing is **idle-anchored**: the engine injects only once the OS idle timer has reached `IntervalSeconds` of no real user input, then repeats every `IntervalSeconds` while the user stays idle (see §6). It is not a fixed periodic injector.
+
 | Mode | Behavior | Display |
 |---|---|---|
-| **Normal** (default) | Inject input each tick; system stays awake | Display follows the OS sleep policy |
-| **S1: Force display off after injection** (toggle, default OFF) | Inject input, then ~200 ms later force display off | Brief "blink" each tick; display off otherwise |
+| **Normal** (default) | When idle ≥ `IntervalSeconds`, inject input (resetting the idle timer); system stays awake | Display follows the OS sleep policy |
+| **S1: Force display off after injection** (toggle, default OFF) | On each injection, ~200 ms later force display off | Brief "blink" each injection; display off otherwise |
 | **S3: Power-Save Mode** (toggle, default OFF) | No injection; hold only `ES_SYSTEM_REQUIRED` / `IOPMAssertion` | Display sleeps normally; Teams **will** mark Away |
 
 S1 and S3 are independent toggles. S3 overrides S1 (no injection ⇒ nothing to blink).
@@ -54,8 +56,8 @@ KeepAwakeTool.sln
 ```csharp
 public interface IInputSimulator
 {
-    void MoveMouse(MouseMode mode);      // Invisible (0,0 delta) or Jiggle (±N px round-trip)
-    void SendKey(VirtualKey key);        // F13 / F14 / F15
+    void MoveMouse(MouseMode mode, int jigglePixels); // Invisible (0,0 delta) or Jiggle (±jigglePixels)
+    void SendKey(VirtualKey key);                      // F13 / F14 / F15
 }
 
 public interface IPowerManager
@@ -69,6 +71,11 @@ public interface IIdleMonitor
     TimeSpan TimeSinceLastUserInput();   // GetLastInputInfo / CGEventSourceSeconds...
 }
 
+public interface ISessionInfo
+{
+    bool IsRemoteSession { get; }        // SM_REMOTESESSION (Win) / equivalent (Mac, v2)
+}
+
 public interface IAutoStartManager
 {
     bool IsEnabled { get; }
@@ -80,31 +87,44 @@ public interface IGlobalHotkeyService
 {
     bool TryRegister(Hotkey hotkey, Action onPressed);
     void Unregister();
+    // Raised from the hotkey pump thread after RegisterHotKey completes.
+    // true = registered; false = failed (e.g. combo already in use).
+    // TryRegister returns true once the request is queued; the real
+    // RegisterHotKey result arrives asynchronously via this event.
+    event Action<bool>? RegistrationResult;
 }
 ```
 
-The DI container selects the Windows or macOS implementation at startup via `RuntimeInformation.IsOSPlatform(...)`.
+There is also a Core `IClock` abstraction (`SystemClock` impl; `LocalNow` + `DelayAsync`) used by the engine/scheduler so timing is testable.
+
+The DI container (`KeepAwakeTool.App.Composition.ServiceRegistration`) selects the Windows (or, in v2, macOS) implementation at startup, guarded by `RuntimeInformation.IsOSPlatform(...)`.
 
 ### 5.2 Core Components
 
-- **`ActivityEngine`** — owns a `PeriodicTimer(IntervalSeconds)`. Runs the per-tick decision tree (Section 6).
-- **`PowerModeController`** — wires S1 and S3 toggles into `IPowerManager` state and gates `ActivityEngine`.
-- **`ConfigurationStore`** — atomic read/write of `config.json`, `FileSystemWatcher`-based reactive change events.
-- **`Scheduler`** — composes `ActivityEngine` + working-hours window + hotkey-pause flag into a unified Running/Paused/PowerSave state.
+- **`ActivityEngine`** — stateless w.r.t. timing; exposes `TickAsync(ct)` which runs the idle-anchored decision tree (Section 6). It does **not** own a timer. It tracks only `_injectionCount` (for keystroke cadence) plus the `HotkeyPaused` / `WithinWorkingHours` flags set by the `Scheduler`. Raises an `Injected` event on each injection (used for the optional tray heartbeat flash).
+- **`EnginePump`** (App layer) — owns the loop. A background `Task` that, every ~1 s, calls `Scheduler.RunOneTickAsync`; exceptions are logged via `FileLogger` and the loop continues. There is no `PeriodicTimer`.
+- **`PowerModeController`** — wires S1/S3 into `IPowerManager` state (system-awake assertion) and re-arms it on resume from sleep.
+- **`ConfigurationStore`** — atomic read/write of `config.json`, `FileSystemWatcher`-based reactive `Changed` events, and corrupt-file quarantine (`.corrupt.<timestamp>.json` backup + defaults) with `LastCorruptBackupPath` / `CorruptQuarantined` signals.
+- **`Scheduler`** — composes `ActivityEngine` + working-hours window + hotkey-pause flag + S3 into a unified `Running` / `Paused` / `PowerSave` / `Stopped` state. Each pump tick it refreshes config, recomputes `WithinWorkingHours`, re-evaluates state, and only calls `ActivityEngine.TickAsync` when `Running`. (Out-of-hours does **not** flip the tool to `Stopped`; the engine simply doesn't inject — see §7.)
+- **`IClock`** / **`SystemClock`** — injected time source so the 200 ms S1 delay and schedule comparisons are deterministic in tests.
 
 ### 5.3 Platform.Win Implementations
 
-- **`WindowsInputSimulator`** — `SendInput` with `INPUT_MOUSE` (delta `(0,0)` for Invisible; `(+1,0)` then `(-1,0)` for Jiggle) and `INPUT_KEYBOARD` (KEYDOWN + KEYUP pair).
-- **`WindowsPowerManager`** — `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)` for awake; `PostMessageW(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, 2)` for display off.
-- **`WindowsIdleMonitor`** — `GetLastInputInfo` + tick-count delta.
-- **`WindowsAutoStartManager`** — registry value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
-- **`WindowsGlobalHotkeyService`** — `RegisterHotKey` against a hidden message-only window; message pump handles `WM_HOTKEY`.
+- **`WindowsInputSimulator`** — `SendInput` with `INPUT_MOUSE` and `INPUT_KEYBOARD` (KEYDOWN + KEYUP pair). Invisible = a `(0,0)` relative move. Jiggle = a **single relative hop of `±jigglePixels`** whose sign alternates on each injection (a +N-then-−N round-trip in one call nets to zero and Windows coalesces/doesn't repaint it for an idle cursor, so it was invisible; the alternating single hop always relocates the cursor — visible — while oscillating within `jigglePixels` so it never drifts).
+- **`WindowsPowerManager`** — `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)` for awake (cleared with `ES_CONTINUOUS` alone). Display-off uses `SendMessageTimeoutW(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, 2, SMTO_ABORTIFHUNG, 1000ms)` — `WM_SYSCOMMAND` must be **sent**, not posted (a broadcast `PostMessage` of it is dropped); the timeout + `ABORTIFHUNG` keeps the engine pump thread from hanging on an unresponsive top-level window.
+- **`WindowsIdleMonitor`** — `GetLastInputInfo` + `GetTickCount` delta.
+- **`WindowsSessionInfo`** — `GetSystemMetrics(SM_REMOTESESSION)` to detect an RDP/remote session.
+- **`WindowsAutoStartManager`** — registry value (quoted exe path) under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+- **`WindowsGlobalHotkeyService`** — owns a single **persistent hidden message-pump window** (`HiddenMessageWindow`, message-only, on its own background "KAT-HotkeyPump" thread). `TryRegister`/`Unregister` post `WM_APP` messages so the actual `RegisterHotKey`/`UnregisterHotKey` always run on the pump thread; `WM_HOTKEY` (a thread message) is handled directly in the pump loop and invokes the callback. The real `RegisterHotKey` success/failure is surfaced asynchronously via `RegistrationResult`.
 
 ### 5.4 App (Avalonia)
 
-- **`App.axaml`** — DI setup, OS detection, single-instance mutex (`Global\KeepAwakeTool`).
-- **`TrayIconController`** — Avalonia `TrayIcon`; state-driven color, live tooltip, context menu.
-- **`SettingsWindow`** — five tabs: General / Activity / Power / Schedule / Hotkey.
+- **`Program.cs`** — entry point. Installs `AppDomain.UnhandledException` / `TaskScheduler.UnobservedTaskException` logging, then enforces single instance via `SingleInstanceGuard` (named `Mutex` `Global\KeepAwakeTool`) before starting Avalonia. (`SignalExistingInstance` is a v1 no-op — the existing tray icon stands in for "already running"; a named-pipe focus message is a future enhancement.)
+- **`ServiceRegistration`** — builds the `Microsoft.Extensions.DependencyInjection` container: config store, `Func<AppConfig>` snapshot provider, `IClock`, the Windows platform implementations (guarded by an OS check that throws on non-Windows), `ActivityEngine`, `Scheduler`, `PowerModeController`, `EnginePump`, `ToastService`, `FileLogger`.
+- **`App.axaml.cs`** — `OnFrameworkInitializationCompleted` wires it together: starts `PowerModeController`, the `TrayIconController`, applies theme via `RequestedThemeVariant`, starts `EnginePump`, subscribes to `ConfigurationStore.Changed` to re-apply autostart/hotkey/theme (idempotent guards), handles `SystemEvents.PowerModeChanged` (resume → `PowerModeController.Rearm`), and wires `ToastService` to the hotkey-registration-failure and corrupt-config signals. Lifecycle is logged via `FileLogger`.
+- **`TrayIconController`** — Avalonia `TrayIcon`; state-driven icon (stopped/running/paused/powersave + optional heartbeat-flash icon), live idle-countdown tooltip (`DispatcherTimer`, 1 s), RDP tooltip note. Left-click opens Settings; context menu = **Pause/Resume**, checkable **Force display off (S1)**, checkable **Power-Save Mode (S3)**, **Settings…**, **Quit**.
+- **`SettingsWindow`** — 640×600, resizable (min 480×420), five tabs: General / Activity / Power / Schedule / Hotkey; footer `[Apply] [OK] [Cancel]`.
+- **`ToastService`** — best-effort bottom-right toast window (auto-closes after 6 s); never crashes the app.
 - **`FirstRunPermissions`** (macOS, v2) — guided Accessibility-permission flow.
 
 ## 6. Data Flow — Single Tick
@@ -150,7 +170,7 @@ poll (every ~1 s)
                             └──────────────────┘
 ```
 
-Transitions: tray menu commands, global hotkey (Running ↔ Paused), S3 toggle (Running ↔ PowerSave), schedule boundary crossings (when `schedule.enabled`: at `startTime` Stopped → Running on configured days; at `endTime` Running → Stopped).
+Transitions: tray menu commands, global hotkey (Running ↔ Paused), S3 toggle (Running ↔ PowerSave). The visible tool state is computed by `Scheduler.EvaluateState()` from S3 and the hotkey-pause flag only — it is `PowerSave` if S3 is on, else `Paused` if hotkey-paused, else `Running`; `Stopped` is the pre-`Start()` state. The **working-hours schedule does not change the tool state**: when `schedule.enabled` and the current time is outside the window, the tool stays `Running` but `ActivityEngine` is gated (`WithinWorkingHours == false`) so no injection occurs; when back inside the window injection resumes automatically. (The earlier "Stopped at endTime" model was not implemented this way.)
 
 ## 8. Configuration
 
@@ -211,36 +231,33 @@ Transitions: tray menu commands, global hotkey (Running ↔ Paused), S3 toggle (
 
 ### 9.1 Tray Icon
 
-- **Icon state**: gray (Stopped), green (Running), yellow (Paused), red (PowerSave/S3).
-- **Tooltip**: `"KeepAwakeTool — Running (next tick in 47s)"`, live-updating.
+- **Icon state**: gray (Stopped), green (Running), yellow (Paused), red (PowerSave/S3); plus a brief heartbeat-flash icon on each injection when `ui.showHeartbeatAnimation` is on.
+- **Tooltip**: `"KeepAwakeTool — Running — next activity in 47s"`, live-updating each second from the idle timer; appends `" — RDP: display-off limited"` in a remote session.
 - **Left-click**: open Settings window (or focus existing).
-- **Right-click menu**:
+- **Right-click menu** (the actual `NativeMenu`):
 
 ```
-● Status: Running                    (header)
+Pause / Resume                       (label toggles with state)
 ─────────────
-⏸ Pause / ▶ Resume
+Force display off (S1)               (checkable)
+Power-Save Mode (S3)                 (checkable)
 ─────────────
-⚡ Power-Save Mode (S3)              (checkable)
-🌙 Force Display Off (S1)            (checkable)
+Settings…
 ─────────────
-⚙ Settings…
-─────────────
-▶ Start with Windows                 (checkable)
-─────────────
-ⓘ About
-✕ Quit
+Quit
 ```
+
+(There is no status-header item, no "Start with Windows" item, and no "About" item in v1 — autostart lives on the General tab.)
 
 ### 9.2 Settings Window
 
-Fixed size ~600×450, five tabs:
+640×600, resizable (min 480×420), five tabs:
 
-1. **General** — interval slider (10s–4min, idle seconds before injection and repeat cadence), startup options, theme.
-2. **Activity** — mouse mode radio (Invisible / Jiggle); jiggle pixel count (visible only when Jiggle); keystroke block (enabled, key dropdown F13/F14/F15, every-Nth cycle numeric).
+1. **General** — interval `NumericUpDown` (10–240 s, step 5; "idle time before injection and repeat cadence"), "Start with Windows", "Start minimized to tray", theme combo (System/Light/Dark).
+2. **Activity** — mouse mode (Invisible / Jiggle); jiggle pixel count (visible only when Jiggle); keystroke block (enabled, key dropdown F13/F14/F15, every-Nth cycle numeric).
 3. **Power** — two toggles with short explainers: "Force display off after each injection (S1)" and "Power-Save Mode (S3) — disables presence injection".
 4. **Schedule** — enabled checkbox; time-range picker; weekday checkboxes (visible only when enabled).
-5. **Hotkey** — enabled checkbox; key-capture field; conflict validation message.
+5. **Hotkey** — enabled checkbox; a **Record…** button that captures a key chord live (press a modifier + key; release commits, **Esc** cancels and restores the previous combo); the captured combination is shown next to the button; a validation message line (e.g. "Add a modifier", "Key not supported"). The hotkey is captured via real key events — it is not free-typed.
 
 Footer buttons: `[Apply]` `[OK]` `[Cancel]`. Apply writes config and stays open.
 
@@ -250,17 +267,17 @@ If Accessibility permission missing, modal explains why the app needs it, a butt
 
 ### 9.4 Single-Instance Enforcement
 
-- Windows: named `Mutex` `Global\KeepAwakeTool`.
-- macOS: lock file in `~/Library/Application Support/KeepAwakeTool/`.
-- Second launch signals the existing instance to focus its Settings window via a named pipe (Windows) / Unix socket (macOS).
+- Windows: named `Mutex` `Global\KeepAwakeTool` (`SingleInstanceGuard`, acquired in `Program.Main` before Avalonia starts).
+- macOS (v2): lock file in `~/Library/Application Support/KeepAwakeTool/`.
+- v1 behavior: a second launch simply exits (the existing tray icon is the visible "already running" signal). Signalling the existing instance to focus its Settings window via a named pipe (Windows) / Unix socket (macOS) is a deferred enhancement — `SignalExistingInstance()` is currently a no-op.
 
 ## 10. Error Handling & Edge Cases
 
 ### 10.1 Error Handling Principles
 
-- **Native API failures** (`SendInput` returns 0, `SetThreadExecutionState` returns 0, `RegisterHotKey` fails) — log and continue; next tick retries.
-- **Hotkey registration failure** — surface a one-time UI toast; user can pick a different combo.
-- **Config file corrupt/unreadable** — write a `.corrupt.<timestamp>.json` backup, write defaults, continue, toast the user.
+- **Native API failures** (`SendInput` returns 0, `SetThreadExecutionState` returns 0, `RegisterHotKey` fails) — log via `FileLogger` and continue; next tick retries. Engine-tick exceptions are caught in `EnginePump` and logged; the loop keeps running.
+- **Hotkey registration failure** — **implemented**: `IGlobalHotkeyService.RegistrationResult(false)` triggers a `ToastService` toast ("Hotkey '…' could not be registered. It may already be in use…"); the user can pick a different combo.
+- **Config file corrupt/unreadable** — **implemented**: `ConfigurationStore` writes a `.corrupt.<timestamp>.json` backup, writes defaults, continues, and raises `LastCorruptBackupPath` (startup) / `CorruptQuarantined` (runtime FSW reload); `App` shows a `ToastService` toast in both cases.
 - **macOS Accessibility permission missing** (v2) — engine refuses to start, tray icon stays gray, banner in Settings with "Open System Settings" CTA.
 - **Schedule misconfig** (start >= end) — treat as "all day", warn in UI.
 - **Unhandled exceptions** — caught at `App` level, logged to `logs/keepawaketool-YYYYMMDD.log`, app keeps running. The tray icon must never disappear silently.
@@ -310,7 +327,7 @@ If Accessibility permission missing, modal explains why the app needs it, a butt
 - S3 toggle ON: tray icon turns red, no synthetic input occurs, system does not sleep.
 - Global hotkey (when enabled) toggles pause from any focused app.
 - Autostart toggle creates/removes the `HKCU\...\Run` entry; app starts minimized after reboot.
-- Working-hours schedule: outside the window, no injection occurs; inside, normal behavior.
+- Working-hours schedule: outside the window, no injection occurs (the tool stays Running but the engine is gated); inside, normal behavior.
 
 ## 14. v2 (macOS) — Implementation Notes
 
@@ -321,3 +338,5 @@ If Accessibility permission missing, modal explains why the app needs it, a butt
 - **Autostart** — `SMAppService` (modern, macOS 13+) or `LaunchAgents` plist for older systems.
 - **Global hotkey** — Carbon `RegisterEventHotKey`.
 - **Accessibility prompt** — `AXIsProcessTrustedWithOptions` to detect; guided UI to System Settings.
+
+The macOS port implements the same Core interfaces listed in §5.1 (`IInputSimulator` with the `MoveMouse(MouseMode, int jigglePixels)` signature, `IPowerManager`, `IIdleMonitor`, `ISessionInfo`, `IAutoStartManager`, `IGlobalHotkeyService` incl. its `RegistrationResult` event) plus `IClock`. `ISessionInfo.IsRemoteSession` on macOS can be derived from a Screen Sharing / remote-login check (or simply return `false` initially — the only consumer is the RDP tooltip note). The `EnginePump` + `Scheduler` + `ActivityEngine` flow is platform-agnostic and is reused unchanged.

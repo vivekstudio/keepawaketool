@@ -1,5 +1,7 @@
 # KeepAwakeTool Implementation Plan
 
+> **Historical** — this is the original v1 build plan. The shipped implementation has since diverged substantially (idle-anchored timing, extra features, fixes). The authoritative current description is the design spec + git history; this file is kept for provenance only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship a Windows v1 of KeepAwakeTool — a background utility that injects synthetic mouse/keyboard input to keep presence-aware apps marked Active, with optional display-off-after-injection (S1) and system-awake-only (S3) modes.
