@@ -5,6 +5,13 @@ Run after each release build (`dotnet publish -c Release -r win-x64 --self-conta
 ## Pre-flight
 - Fresh log in to a Windows 11 box with Microsoft Teams installed.
 - No prior KeepAwakeTool config in `%AppData%\KeepAwakeTool\`.
+- **Required: pin the tray icon to the always-visible system tray.** After first launch,
+  go to Settings → Personalization → Taskbar → "Other system tray icons" and toggle
+  **KeepAwakeTool** to On. If the icon is left in the Windows 11 "hidden icons" overflow
+  flyout, the right-click context menu can hang/orphan when hovering items: the overflow
+  flyout auto-closes on focus loss and Avalonia's `TrayIcon`/`NativeMenu` does not keep it
+  alive or dismiss correctly (a framework-level limitation in `Avalonia.Win32`, not app
+  code). Pinning the icon avoids the focus-fragile flyout and the menu behaves normally.
 
 ## 1. First run / defaults
 1. Launch the published `KeepAwakeTool.exe`.

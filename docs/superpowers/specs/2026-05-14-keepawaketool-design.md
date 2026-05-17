@@ -270,6 +270,7 @@ If Accessibility permission missing, modal explains why the app needs it, a butt
 - **Multiple monitors** — display-off is system-wide on both OSes (Win `SC_MONITORPOWER`, macOS `pmset displaysleepnow`).
 - **RDP / remote session** (Win) — if `GetSystemMetrics(SM_REMOTESESSION)` is true, surface a tooltip note; injection still works but local display-off is not meaningful.
 - **App crash mid-S1** — `SetThreadExecutionState(ES_CONTINUOUS)` is cleared by the OS on process exit; safe by default.
+- **Tray menu in Win11 overflow flyout (known limitation)** — when the tray icon sits in the Windows 11 "hidden icons" overflow flyout, the right-click `NativeMenu` can orphan/hang on hover: the system overflow flyout auto-closes on focus loss and `Avalonia.Win32`'s tray menu does not perform the `SetForegroundWindow` + `PostMessage(WM_NULL)` tracking dance `TrackPopupMenu` requires, so the menu is left without focus tracking. This is a framework-level limitation, not app code (the app only assigns `TrayIcon.Menu`). **Workaround:** pin the icon to the always-visible tray (Taskbar settings → other system tray icons → enable KeepAwakeTool); pinned icons are not in the focus-fragile flyout and the menu behaves correctly. A true in-code fix would require replacing `NativeMenu` with a custom owned popup, which Avalonia's `TrayIcon` does not cleanly support (no right-click hook) — deferred.
 
 ## 11. Testing Approach
 
