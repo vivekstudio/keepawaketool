@@ -72,6 +72,13 @@ public class ConfigurationStoreTests : IDisposable
         store.Load().Power.ForceDisplayOffAfterInjection.Should().BeTrue();
     }
 
+    // End-to-end test of the real OS FileSystemWatcher delivering a change
+    // notification. FSW delivery latency is unbounded and nondeterministic under
+    // automated `dotnet test` (CI), so this is tagged as a Timing/integration test
+    // and excluded from CI (see .github/workflows/ci.yml --filter). The store's
+    // reload logic itself is covered deterministically by the other tests. Run
+    // locally with: dotnet test --filter Category=Timing
+    [Trait("Category", "Timing")]
     [Fact]
     public async Task Changed_event_fires_when_file_is_modified()
     {
