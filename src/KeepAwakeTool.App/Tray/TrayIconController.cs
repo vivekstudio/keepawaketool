@@ -120,8 +120,19 @@ public sealed class TrayIconController
         if (_s3Item is not null) _s3Item.IsChecked = cfg.Power.PowerSaveMode;
     }
 
-    private string BaseTooltip(EngineState state)
-        => $"KeepAwakeTool — {state}{(_remote ? " — RDP: display-off limited" : "")}";
+    private string ComposeTrayTooltip()
+    {
+        var scheduler = _sp.GetRequiredService<Scheduler>();
+        var cfg = _sp.GetRequiredService<Func<AppConfig>>()();
+        var idle = _sp.GetRequiredService<IIdleMonitor>().TimeSinceLastUserInput();
+        return "KeepAwakeTool — " + StatusText.Build(
+                   scheduler.State,
+                   cfg.Power.ForceDisplayOffAfterInjection,
+                   cfg.Power.PowerSaveMode,
+                   cfg.Activity.IntervalSeconds,
+                   idle)
+               + (_remote ? " · RDP: display-off limited" : "");
+    }
 
     private void UpdateIcon(EngineState state)
     {
@@ -135,7 +146,7 @@ public sealed class TrayIconController
         };
         using var stream = AssetLoader.Open(new Uri(asset));
         _tray.Icon = new WindowIcon(stream);
-        _tray.ToolTipText = BaseTooltip(state);
+        _tray.ToolTipText = ComposeTrayTooltip();
         if (_pauseItem is not null)
             _pauseItem.Header = state == EngineState.Paused ? "Resume" : "Pause";
     }
@@ -143,17 +154,7 @@ public sealed class TrayIconController
     private void RefreshTooltip()
     {
         if (_tray is null) return;
-        var scheduler = _sp.GetRequiredService<Scheduler>();
-        var state = scheduler.State;
-        var text = BaseTooltip(state);
-        if (state == EngineState.Running)
-        {
-            var idle = _sp.GetRequiredService<IIdleMonitor>().TimeSinceLastUserInput();
-            var interval = _sp.GetRequiredService<Func<AppConfig>>()().Activity.IntervalSeconds;
-            var secs = (int)Math.Max(0, interval - idle.TotalSeconds);
-            text += $" — next activity in {secs}s";
-        }
-        _tray.ToolTipText = text;
+        _tray.ToolTipText = ComposeTrayTooltip();
     }
 
     private async void FlashHeartbeat()
