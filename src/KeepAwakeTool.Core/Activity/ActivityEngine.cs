@@ -12,12 +12,15 @@ public sealed class ActivityEngine
     private readonly IIdleMonitor _idle;
     private readonly IPowerManager _power;
     private readonly IClock _clock;
+    private readonly IPermissionGate _gate;
     private AppConfig _config;
     private long _injectionCount;
 
-    public ActivityEngine(IInputSimulator input, IIdleMonitor idle, IPowerManager power, IClock clock, AppConfig config)
+    public ActivityEngine(IInputSimulator input, IIdleMonitor idle, IPowerManager power,
+        IClock clock, AppConfig config, IPermissionGate? permissionGate = null)
     {
         _input = input; _idle = idle; _power = power; _clock = clock; _config = config;
+        _gate = permissionGate ?? new AlwaysAllowPermissionGate();
     }
 
     public event Action? Injected;
@@ -34,6 +37,7 @@ public sealed class ActivityEngine
         if (!WithinWorkingHours) return;
         if (HotkeyPaused) return;
         if (_idle.TimeSinceLastUserInput() < TimeSpan.FromSeconds(_config.Activity.IntervalSeconds)) return;
+        if (!_gate.CanInjectInput) return;
 
         _input.MoveMouse(_config.Activity.Mouse.Mode, _config.Activity.Mouse.JigglePixels);
         _injectionCount++;

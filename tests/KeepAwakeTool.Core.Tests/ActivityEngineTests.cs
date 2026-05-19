@@ -16,9 +16,10 @@ public class ActivityEngineTests
     private readonly FakeInputSimulator _input = new();
     private readonly FakeIdleMonitor _idle = new() { Value = TimeSpan.FromMinutes(5) };
     private readonly FakePowerManager _power = new();
+    private readonly FakePermissionGate _gate = new();
 
     private ActivityEngine BuildEngine(AppConfig? cfg = null)
-        => new(_input, _idle, _power, _clock, cfg ?? ConfigDefaults.Default());
+        => new(_input, _idle, _power, _clock, cfg ?? ConfigDefaults.Default(), _gate);
 
     [Fact]
     public async Task Tick_moves_mouse_when_user_is_idle()
@@ -128,5 +129,23 @@ public class ActivityEngineTests
         var engine = BuildEngine();
         await engine.TickAsync(CancellationToken.None);
         _power.ForceDisplayOffCalls.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Tick_skips_when_permission_gate_denies_input()
+    {
+        _gate.CanInjectInput = false;
+        var engine = BuildEngine();
+        await engine.TickAsync(CancellationToken.None);
+        _input.MouseMoves.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Tick_injects_when_permission_gate_allows_input()
+    {
+        _gate.CanInjectInput = true;
+        var engine = BuildEngine();
+        await engine.TickAsync(CancellationToken.None);
+        _input.MouseMoves.Should().ContainSingle();
     }
 }
