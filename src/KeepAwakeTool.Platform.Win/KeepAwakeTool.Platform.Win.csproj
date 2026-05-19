@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\KeepAwakeTool.Core\KeepAwakeTool.Core.csproj" />
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.8" />
   </ItemGroup>
 </Project>
