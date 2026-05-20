@@ -20,7 +20,21 @@ jobs:
       # whose delivery latency is nondeterministic under automated runs. Its logic
       # is covered by the other deterministic tests; run it locally with
       # `dotnet test --filter Category=Timing`.
-      - run: dotnet test --no-build -c Release --filter "Category!=Timing" --verbosity normal
+      - run: dotnet test --no-build -c Release --filter "Category!=Timing&Category!=PlatformIntegration" --verbosity normal -- xUnit.ParallelizeTestCollections=false
+
+  build-test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore
+      - run: dotnet build --no-restore -c Release
+      # Excludes the OS FileSystemWatcher timing test (nondeterministic in CI)
+      # and the macOS PlatformIntegration tests (require a real interactive
+      # session / Accessibility grant — run via the manual smoke instead).
+      - run: dotnet test --no-build -c Release --filter "Category!=Timing&Category!=PlatformIntegration" --verbosity normal -- xUnit.ParallelizeTestCollections=false
 
   publish:
     needs: build-test
