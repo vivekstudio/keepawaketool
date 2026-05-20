@@ -543,17 +543,19 @@ Replace the entire contents of `src/KeepAwakeTool.App/KeepAwakeTool.App.csproj` 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>
     <RootNamespace>KeepAwakeTool.App</RootNamespace>
     <AssemblyName>KeepAwakeTool</AssemblyName>
     <UseAvalonia>true</UseAvalonia>
   </PropertyGroup>
 
-  <!-- Windows-only application manifest (applied only on the -windows TFM). -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <ApplicationManifest Include="app.manifest" />
-  </ItemGroup>
+  <!-- Windows-only Win32 application manifest. MUST be set as a PROPERTY (not an Item):
+       MSBuild's manifest-embedding logic reads $(ApplicationManifest); the @(ApplicationManifest)
+       item form only feeds ClickOnce and would silently produce a manifest-less Windows binary. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
 
   <ItemGroup>
     <AvaloniaResource Include="Tray/Assets/*.ico" />
@@ -581,6 +583,16 @@ Replace the entire contents of `src/KeepAwakeTool.App/KeepAwakeTool.App.csproj` 
 ```
 
 Notes:
+- `OutputType=WinExe` is set unconditionally — it suppresses the console window on Windows
+  (required for the tray app — `Exe` would show a blank console behind the tray icon) and
+  is treated as `Exe` on macOS by the SDK. Setting it conditionally per TFM would also work
+  but is unnecessary noise.
+- `<ApplicationManifest>app.manifest</ApplicationManifest>` is in a **conditional
+  `PropertyGroup`** (not an `ItemGroup`). MSBuild's Win32 manifest embedding (`EmbeddedWin32Manifest`)
+  reads the `$(ApplicationManifest)` property; the `@(ApplicationManifest)` item form is
+  consumed only by ClickOnce-deployment targets and would silently leave the Windows binary
+  without its UAC/DPI manifest entries — a byte-for-byte regression that the build does not
+  flag.
 - `TargetFrameworks` (plural) overrides the singular `TargetFramework` set by the root
   `Directory.Build.props` — SDK projects iterate per TFM when the plural form is set.
 - The SDK auto-defines a `WINDOWS` compile symbol on the `net10.0-windows` TFM, which Step 5

@@ -1,16 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>
     <RootNamespace>KeepAwakeTool.App</RootNamespace>
     <AssemblyName>KeepAwakeTool</AssemblyName>
     <UseAvalonia>true</UseAvalonia>
   </PropertyGroup>
 
-  <!-- Windows-only application manifest (applied only on the -windows TFM). -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <ApplicationManifest Include="app.manifest" />
-  </ItemGroup>
+  <!-- Windows-only Win32 application manifest. MUST be a property (consumed by
+       EmbeddedWin32Manifest); the @(ApplicationManifest) item form feeds ClickOnce only
+       and would silently produce a manifest-less Windows binary. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
 
   <ItemGroup>
     <AvaloniaResource Include="Tray/Assets/*.ico" />
