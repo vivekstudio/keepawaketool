@@ -36,6 +36,10 @@ internal static class Carbon
     [DllImport(Lib)]
     internal static extern IntPtr GetApplicationEventTarget();
 
+    // CALLER must keep the delegate instance alive (e.g. in a field) for as long as the
+    // handler is registered. DllImport marshals it to a function pointer that Carbon
+    // retains; if the managed delegate is GC'd before unregistration, Carbon invokes a
+    // stale pointer and the process crashes. MacGlobalHotkeyService stores it in `_handler`.
     [DllImport(Lib)]
     internal static extern int InstallEventHandler(IntPtr inTarget, EventHandlerProcPtr inHandler,
         int inNumTypes, [In] EventTypeSpec[] inList, IntPtr inUserData, out IntPtr outRef);

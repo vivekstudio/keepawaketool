@@ -982,6 +982,10 @@ internal static class CoreFoundation
         Marshal.ReadIntPtr(NativeLibrary.GetExport(NativeLibrary.Load(Lib), "kCFRunLoopCommonModes")));
     internal static IntPtr kCFRunLoopCommonModes => _commonModes.Value;
 
+    /// <summary>
+    /// Creates a CFStringRef from a managed string (Create rule — caller MUST CFRelease
+    /// the returned handle, typically in a finally block).
+    /// </summary>
     internal static IntPtr CFStr(string s) =>
         CFStringCreateWithCString(IntPtr.Zero, s, kCFStringEncodingUTF8);
 }
@@ -1051,9 +1055,12 @@ internal static class IOKit
     // Message type delivered to the IOServiceInterestCallback on wake.
     internal const uint kIOMessageSystemHasPoweredOn = 0xE0000300;
 
+    // BOTH assertionType AND assertionName are CFStringRef in IOPMLib.h — not raw C strings.
+    // Callers wrap kIOPMAssertPreventUserIdleSystemSleep with CoreFoundation.CFStr(...) and
+    // CFRelease the result in a finally, just like assertionName.
     [DllImport(Lib)]
     internal static extern int IOPMAssertionCreateWithName(
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string assertionType, uint assertionLevel,
+        IntPtr assertionType, uint assertionLevel,
         IntPtr assertionName, out uint assertionID);
 
     [DllImport(Lib)]
@@ -1123,6 +1130,10 @@ internal static class Carbon
     [DllImport(Lib)]
     internal static extern IntPtr GetApplicationEventTarget();
 
+    // CALLER must keep the delegate instance alive (e.g. in a field) for as long as the
+    // handler is registered. DllImport marshals it to a function pointer that Carbon
+    // retains; if the managed delegate is GC'd before unregistration, Carbon invokes a
+    // stale pointer and the process crashes. MacGlobalHotkeyService stores it in `_handler`.
     [DllImport(Lib)]
     internal static extern int InstallEventHandler(IntPtr inTarget, EventHandlerProcPtr inHandler,
         int inNumTypes, [In] EventTypeSpec[] inList, IntPtr inUserData, out IntPtr outRef);
@@ -1354,16 +1365,22 @@ public sealed class MacPowerManager : IPowerManager
         if (on)
         {
             if (_asserted) return;
+            // Both AssertionType and AssertionName are CFStringRef in IOPMLib.h
+            // (despite the assertion-type constant being a plain C string macro).
+            var type = CoreFoundation.CFStr(IOKit.kIOPMAssertPreventUserIdleSystemSleep);
             var name = CoreFoundation.CFStr("KeepAwakeTool");
             try
             {
                 var rc = IOKit.IOPMAssertionCreateWithName(
-                    IOKit.kIOPMAssertPreventUserIdleSystemSleep,
-                    IOKit.kIOPMAssertionLevelOn, name, out _assertionId);
+                    type, IOKit.kIOPMAssertionLevelOn, name, out _assertionId);
                 if (rc == 0) _asserted = true;
                 else _log?.Invoke("ERROR", $"IOPMAssertionCreateWithName failed rc={rc}");
             }
-            finally { if (name != IntPtr.Zero) CoreFoundation.CFRelease(name); }
+            finally
+            {
+                if (name != IntPtr.Zero) CoreFoundation.CFRelease(name);
+                if (type != IntPtr.Zero) CoreFoundation.CFRelease(type);
+            }
         }
         else
         {

@@ -33,6 +33,10 @@ internal static class CoreFoundation
         Marshal.ReadIntPtr(NativeLibrary.GetExport(NativeLibrary.Load(Lib), "kCFRunLoopCommonModes")));
     internal static IntPtr kCFRunLoopCommonModes => _commonModes.Value;
 
+    /// <summary>
+    /// Creates a CFStringRef from a managed string (Create rule — caller MUST CFRelease
+    /// the returned handle, typically in a finally block).
+    /// </summary>
     internal static IntPtr CFStr(string s) =>
         CFStringCreateWithCString(IntPtr.Zero, s, kCFStringEncodingUTF8);
 }

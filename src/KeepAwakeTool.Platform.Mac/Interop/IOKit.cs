@@ -11,9 +11,12 @@ internal static class IOKit
     // Message type delivered to the IOServiceInterestCallback on wake.
     internal const uint kIOMessageSystemHasPoweredOn = 0xE0000300;
 
+    // BOTH assertionType AND assertionName are CFStringRef in IOPMLib.h — not raw C strings.
+    // Callers wrap kIOPMAssertPreventUserIdleSystemSleep with CoreFoundation.CFStr(...) and
+    // CFRelease the result in a finally, just like assertionName.
     [DllImport(Lib)]
     internal static extern int IOPMAssertionCreateWithName(
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string assertionType, uint assertionLevel,
+        IntPtr assertionType, uint assertionLevel,
         IntPtr assertionName, out uint assertionID);
 
     [DllImport(Lib)]
