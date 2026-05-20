@@ -125,25 +125,31 @@ public sealed class TrayIconController
         var scheduler = _sp.GetRequiredService<Scheduler>();
         var cfg = _sp.GetRequiredService<Func<AppConfig>>()();
         var idle = _sp.GetRequiredService<IIdleMonitor>().TimeSinceLastUserInput();
+        var gate = _sp.GetRequiredService<IPermissionGate>();
+        var a11y = gate.CanInjectInput ? "" : " · Accessibility permission required";
         return "KeepAwakeTool — " + StatusText.Build(
                    scheduler.State,
                    cfg.Power.ForceDisplayOffAfterInjection,
                    cfg.Power.PowerSaveMode,
                    cfg.Activity.IntervalSeconds,
                    idle)
+               + a11y
                + (_remote ? " · RDP: display-off limited" : "");
     }
 
     private void UpdateIcon(EngineState state)
     {
         if (_tray is null) return;
-        var asset = state switch
-        {
-            EngineState.Running   => "avares://KeepAwakeTool/Tray/Assets/icon-running.ico",
-            EngineState.Paused    => "avares://KeepAwakeTool/Tray/Assets/icon-paused.ico",
-            EngineState.PowerSave => "avares://KeepAwakeTool/Tray/Assets/icon-powersave.ico",
-            _                     => "avares://KeepAwakeTool/Tray/Assets/icon-stopped.ico"
-        };
+        var gate = _sp.GetRequiredService<IPermissionGate>();
+        var asset = !gate.CanInjectInput
+            ? "avares://KeepAwakeTool/Tray/Assets/icon-stopped.ico"
+            : state switch
+            {
+                EngineState.Running   => "avares://KeepAwakeTool/Tray/Assets/icon-running.ico",
+                EngineState.Paused    => "avares://KeepAwakeTool/Tray/Assets/icon-paused.ico",
+                EngineState.PowerSave => "avares://KeepAwakeTool/Tray/Assets/icon-powersave.ico",
+                _                     => "avares://KeepAwakeTool/Tray/Assets/icon-stopped.ico"
+            };
         using var stream = AssetLoader.Open(new Uri(asset));
         _tray.Icon = new WindowIcon(stream);
         _tray.ToolTipText = ComposeTrayTooltip();
