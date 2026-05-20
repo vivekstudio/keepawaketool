@@ -8,5 +8,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/KeepAwakeTool.Core.Tests/KeepAwakeTool.Core.Tests.csproj" />
     <Project Path="tests/KeepAwakeTool.App.Tests/KeepAwakeTool.App.Tests.csproj" />
+    <Project Path="tests/KeepAwakeTool.Platform.Mac.Tests/KeepAwakeTool.Platform.Mac.Tests.csproj" />
   </Folder>
 </Solution>

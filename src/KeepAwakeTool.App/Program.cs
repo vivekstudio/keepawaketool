@@ -47,8 +47,7 @@ internal static class Program
 #if WINDOWS
         return new KeepAwakeTool.Platform.Win.WindowsSingleInstanceGuard();
 #else
-        // macOS implementation lands in Task 18 (Phase 2).
-        throw new PlatformNotSupportedException("macOS single-instance guard lands in Phase 2.");
+        return new KeepAwakeTool.Platform.Mac.MacSingleInstanceGuard();
 #endif
     }
 

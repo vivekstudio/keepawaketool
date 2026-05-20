@@ -10,6 +10,8 @@ using KeepAwakeTool.Core.Power;
 using KeepAwakeTool.Core.Scheduling;
 #if WINDOWS
 using KeepAwakeTool.Platform.Win;
+#else
+using KeepAwakeTool.Platform.Mac;
 #endif
 using Microsoft.Extensions.DependencyInjection;
 
@@ -56,11 +58,29 @@ public static class ServiceRegistration
         services.AddSingleton<IInputPermissionPrompt, WindowsInputPermissionPrompt>();
         services.AddSingleton<ISystemPowerEvents, WindowsSystemPowerEvents>();
 #else
-        // macOS implementations land in Task 18 (Phase 2).
-        throw new PlatformNotSupportedException("macOS platform services land in Phase 2.");
+        services.AddSingleton<IInputSimulator, MacInputSimulator>();
+        services.AddSingleton<IIdleMonitor, MacIdleMonitor>();
+        services.AddSingleton<IPermissionGate, MacPermissionGate>();
+        services.AddSingleton<IInputPermissionPrompt, MacInputPermissionPrompt>();
+        services.AddSingleton<ISessionInfo, MacSessionInfo>();
+        services.AddSingleton<IPowerManager>(sp =>
+        {
+            var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
+            return new MacPowerManager((lvl, msg) => fl.Log(lvl, msg));
+        });
+        services.AddSingleton<IAutoStartManager>(sp =>
+        {
+            var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
+            return new MacAutoStartManager((lvl, msg) => fl.Log(lvl, msg));
+        });
+        services.AddSingleton<ISystemPowerEvents, MacSystemPowerEvents>();
+        services.AddSingleton<IGlobalHotkeyService>(sp =>
+        {
+            var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
+            return new MacGlobalHotkeyService((lvl, msg) => fl.Log(lvl, msg));
+        });
 #endif
 
-#if WINDOWS
         services.AddSingleton<ActivityEngine>(sp => new ActivityEngine(
             sp.GetRequiredService<IInputSimulator>(),
             sp.GetRequiredService<IIdleMonitor>(),
@@ -81,6 +101,5 @@ public static class ServiceRegistration
         services.AddSingleton<ToastService>();
 
         return services.BuildServiceProvider();
-#endif
     }
 }
