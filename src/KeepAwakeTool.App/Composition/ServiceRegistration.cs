@@ -53,6 +53,9 @@ public static class ServiceRegistration
             var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
             return new WindowsGlobalHotkeyService((level, msg) => fl.Log(level, msg));
         });
+        services.AddSingleton<IPermissionGate, WindowsPermissionGate>();
+        services.AddSingleton<IInputPermissionPrompt, WindowsInputPermissionPrompt>();
+        services.AddSingleton<ISystemPowerEvents, WindowsSystemPowerEvents>();
 #else
         // macOS implementations are wired in Task 6 and fully filled out in Task 18 (Phase 2).
         throw new PlatformNotSupportedException("macOS platform services land in Phase 2.");
@@ -64,7 +67,8 @@ public static class ServiceRegistration
             sp.GetRequiredService<IIdleMonitor>(),
             sp.GetRequiredService<IPowerManager>(),
             sp.GetRequiredService<IClock>(),
-            sp.GetRequiredService<Func<AppConfig>>()()));
+            sp.GetRequiredService<Func<AppConfig>>()(),
+            sp.GetRequiredService<IPermissionGate>()));
 
         services.AddSingleton<Scheduler>(sp => new Scheduler(
             sp.GetRequiredService<ActivityEngine>(),

@@ -1,5 +1,5 @@
 using Avalonia;
-using KeepAwakeTool.App.SingleInstance;
+using KeepAwakeTool.Core.Platform;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -8,6 +8,8 @@ namespace KeepAwakeTool.App;
 
 internal static class Program
 {
+    private static ISingleInstanceGuard? _guard;
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -22,9 +24,10 @@ internal static class Program
             e.SetObserved();
         };
 
-        if (!SingleInstanceGuard.TryAcquire())
+        _guard = CreateGuard();
+        if (!_guard.TryAcquire())
         {
-            SingleInstanceGuard.SignalExistingInstance();
+            _guard.SignalExistingInstance();
             return 0;
         }
 
@@ -35,8 +38,18 @@ internal static class Program
         }
         finally
         {
-            SingleInstanceGuard.Release();
+            _guard.Release();
         }
+    }
+
+    private static ISingleInstanceGuard CreateGuard()
+    {
+#if WINDOWS
+        return new KeepAwakeTool.Platform.Win.WindowsSingleInstanceGuard();
+#else
+        // macOS implementation lands in Task 18 (Phase 2).
+        throw new PlatformNotSupportedException("macOS single-instance guard lands in Phase 2.");
+#endif
     }
 
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>()

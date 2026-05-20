@@ -54,6 +54,9 @@ public partial class App : Application
             _pump.Start();
             _log.Log("INFO", "Engine pump started");
 
+            Services.GetRequiredService<KeepAwakeTool.Core.Platform.IInputPermissionPrompt>()
+                .RequestInitialGrantIfNeeded();
+
             var store = Services.GetRequiredService<KeepAwakeTool.Core.Config.ConfigurationStore>();
             store.Changed += (_, cfg) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
@@ -62,9 +65,9 @@ public partial class App : Application
                 ApplyTheme(cfg);
             });
 
-#if WINDOWS
-            Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
-#endif
+            var powerEvents = Services.GetRequiredService<KeepAwakeTool.Core.Platform.ISystemPowerEvents>();
+            powerEvents.Resumed += OnSystemResumed;
+            powerEvents.Start();
 
             ApplyAutostart(configProvider());
             ApplyHotkey(configProvider());
@@ -93,9 +96,8 @@ public partial class App : Application
             desktop.Exit += (_, _) =>
             {
                 _log?.Log("INFO", "Shutting down");
-#if WINDOWS
-                Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
-#endif
+                powerEvents.Resumed -= OnSystemResumed;
+                powerEvents.Stop();
                 _pump?.Dispose();
                 power.Stop();
                 (Services.GetRequiredService<IGlobalHotkeyService>() as IDisposable)?.Dispose();
@@ -151,16 +153,11 @@ public partial class App : Application
         }
     }
 
-#if WINDOWS
-    private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    private void OnSystemResumed()
     {
-        if (e.Mode == Microsoft.Win32.PowerModes.Resume)
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                Services.GetRequiredService<Core.Power.PowerModeController>().Rearm();
-            });
-        }
+            Services.GetRequiredService<Core.Power.PowerModeController>().Rearm();
+        });
     }
-#endif
 }
