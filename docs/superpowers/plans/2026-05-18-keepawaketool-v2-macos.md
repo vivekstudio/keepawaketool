@@ -1929,14 +1929,27 @@ public sealed class MacGlobalHotkeyService : IGlobalHotkeyService, IDisposable
                     eventClass = Carbon.kEventClassKeyboard,
                     eventKind = Carbon.kEventHotKeyPressed
                 };
-                Carbon.InstallEventHandler(Carbon.GetApplicationEventTarget(), _handler!,
+                var installRc = Carbon.InstallEventHandler(Carbon.GetApplicationEventTarget(), _handler!,
                     1, new[] { spec }, IntPtr.Zero, out _);
+                if (installRc != 0)
+                {
+                    _log?.Invoke("ERROR", $"Carbon.InstallEventHandler failed rc={installRc}");
+                    RegistrationResult?.Invoke(false);
+                    return;
+                }
                 DoRegister();
             });
             _loop.Start();
         }
         else
         {
+            // KNOWN LIMITATION: subsequent re-registers run DoRegister on the CALLER's
+            // thread, not the pump thread. The Windows impl marshals to the pump via
+            // PostMessage; the macOS equivalent would need a CFRunLoopSource +
+            // CFRunLoopWakeUp (or a libdispatch queue running on the pump). Carbon's
+            // RegisterEventHotKey uses global OS state so this is benign in practice,
+            // and Avalonia subscribers to RegistrationResult marshal to UI thread
+            // anyway. Tracked for follow-up; not blocking the happy path.
             DoRegister();
         }
         return true; // real result arrives async via RegistrationResult
