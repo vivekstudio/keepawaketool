@@ -62,7 +62,9 @@ public partial class App : Application
                 ApplyTheme(cfg);
             });
 
+#if WINDOWS
             Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
+#endif
 
             ApplyAutostart(configProvider());
             ApplyHotkey(configProvider());
@@ -91,7 +93,9 @@ public partial class App : Application
             desktop.Exit += (_, _) =>
             {
                 _log?.Log("INFO", "Shutting down");
+#if WINDOWS
                 Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+#endif
                 _pump?.Dispose();
                 power.Stop();
                 (Services.GetRequiredService<IGlobalHotkeyService>() as IDisposable)?.Dispose();
@@ -147,6 +151,7 @@ public partial class App : Application
         }
     }
 
+#if WINDOWS
     private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs e)
     {
         if (e.Mode == Microsoft.Win32.PowerModes.Resume)
@@ -157,4 +162,5 @@ public partial class App : Application
             });
         }
     }
+#endif
 }

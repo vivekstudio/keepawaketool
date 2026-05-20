@@ -1,18 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>
     <RootNamespace>KeepAwakeTool.App</RootNamespace>
     <AssemblyName>KeepAwakeTool</AssemblyName>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
     <UseAvalonia>true</UseAvalonia>
   </PropertyGroup>
+
+  <!-- Windows-only application manifest (applied only on the -windows TFM). -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <ApplicationManifest Include="app.manifest" />
+  </ItemGroup>
+
   <ItemGroup>
     <AvaloniaResource Include="Tray/Assets/*.ico" />
   </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\KeepAwakeTool.Core\KeepAwakeTool.Core.csproj" />
-    <ProjectReference Include="..\KeepAwakeTool.Platform.Win\KeepAwakeTool.Platform.Win.csproj" />
     <PackageReference Include="Avalonia" Version="12.0.3" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.3" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.3" />
@@ -20,6 +25,13 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.8" />
-    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.8" />
+  </ItemGroup>
+
+  <!-- Platform projects: each TFM references exactly one. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <ProjectReference Include="..\KeepAwakeTool.Platform.Win\KeepAwakeTool.Platform.Win.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <ProjectReference Include="..\KeepAwakeTool.Platform.Mac\KeepAwakeTool.Platform.Mac.csproj" />
   </ItemGroup>
 </Project>

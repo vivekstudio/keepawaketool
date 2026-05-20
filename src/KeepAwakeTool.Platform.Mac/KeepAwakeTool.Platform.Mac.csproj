@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>KeepAwakeTool.Platform.Mac</RootNamespace>
+    <AssemblyName>KeepAwakeTool.Platform.Mac</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\KeepAwakeTool.Core\KeepAwakeTool.Core.csproj" />
+  </ItemGroup>
+</Project>

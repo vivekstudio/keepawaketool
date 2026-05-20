@@ -9,7 +9,9 @@ using KeepAwakeTool.Core.Diagnostics;
 using KeepAwakeTool.Core.Platform;
 using KeepAwakeTool.Core.Power;
 using KeepAwakeTool.Core.Scheduling;
+#if WINDOWS
 using KeepAwakeTool.Platform.Win;
+#endif
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KeepAwakeTool.App.Composition;
@@ -39,9 +41,7 @@ public static class ServiceRegistration
 
         services.AddSingleton<IClock, SystemClock>();
 
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            throw new PlatformNotSupportedException("v1 supports Windows only.");
-
+#if WINDOWS
         var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName!;
         services.AddSingleton<IInputSimulator, WindowsInputSimulator>();
         services.AddSingleton<IIdleMonitor, WindowsIdleMonitor>();
@@ -53,7 +53,12 @@ public static class ServiceRegistration
             var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
             return new WindowsGlobalHotkeyService((level, msg) => fl.Log(level, msg));
         });
+#else
+        // macOS implementations are wired in Task 6 and fully filled out in Task 18 (Phase 2).
+        throw new PlatformNotSupportedException("macOS platform services land in Phase 2.");
+#endif
 
+#if WINDOWS
         services.AddSingleton<ActivityEngine>(sp => new ActivityEngine(
             sp.GetRequiredService<IInputSimulator>(),
             sp.GetRequiredService<IIdleMonitor>(),
@@ -73,5 +78,6 @@ public static class ServiceRegistration
         services.AddSingleton<ToastService>();
 
         return services.BuildServiceProvider();
+#endif
     }
 }
