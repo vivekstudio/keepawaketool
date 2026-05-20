@@ -26,7 +26,20 @@ internal sealed class RunLoopThread : IDisposable
     }
 
     public IntPtr RunLoop => _runLoop;
-    public void Start() { _thread.Start(); _ready.Wait(); }
+
+    /// <summary>
+    /// Starts the background thread and blocks until the run-loop init action has
+    /// completed and the thread is about to call CFRunLoopRun. Throws if the init
+    /// action fails to signal readiness within 5 seconds (otherwise Start() could
+    /// hang indefinitely if the init throws or deadlocks).
+    /// </summary>
+    public void Start()
+    {
+        _thread.Start();
+        if (!_ready.Wait(TimeSpan.FromSeconds(5)))
+            throw new TimeoutException(
+                $"RunLoopThread '{_thread.Name}' did not signal readiness within 5s.");
+    }
 
     public void Dispose()
     {

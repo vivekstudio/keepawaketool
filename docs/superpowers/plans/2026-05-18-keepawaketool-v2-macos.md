@@ -1080,6 +1080,16 @@ internal static class IOKit
     [DllImport(Lib)]
     internal static extern int IODeregisterForSystemPower(ref IntPtr notifier);
 
+    // IODeregisterForSystemPower releases the notifier object but NOT the
+    // notification port itself, and does NOT close the connection. Callers must
+    // additionally call IONotificationPortDestroy(_notifyPort) and IOServiceClose(_rootPort)
+    // on the same Stop() path to fully release IOKit handles.
+    [DllImport(Lib)]
+    internal static extern void IONotificationPortDestroy(IntPtr notify);
+
+    [DllImport(Lib)]
+    internal static extern int IOServiceClose(IntPtr connect);
+
     [DllImport(Lib)]
     internal static extern void IOAllowPowerChange(IntPtr kernPort, IntPtr notificationID);
 
@@ -1691,7 +1701,19 @@ internal sealed class RunLoopThread : IDisposable
     }
 
     public IntPtr RunLoop => _runLoop;
-    public void Start() { _thread.Start(); _ready.Wait(); }
+
+    /// <summary>
+    /// Starts the background thread and blocks until the run-loop init action has
+    /// completed and the thread is about to call CFRunLoopRun. Throws if the init
+    /// action fails to signal readiness within 5 seconds.
+    /// </summary>
+    public void Start()
+    {
+        _thread.Start();
+        if (!_ready.Wait(TimeSpan.FromSeconds(5)))
+            throw new TimeoutException(
+                $"RunLoopThread '{_thread.Name}' did not signal readiness within 5s.");
+    }
 
     public void Dispose()
     {
@@ -1752,7 +1774,12 @@ public sealed class MacSystemPowerEvents : ISystemPowerEvents
     public void Stop()
     {
         if (_loop is null) return;
+        // IODeregisterForSystemPower releases the notifier object but neither closes the
+        // root-port connection nor destroys the notification port — both must be released
+        // explicitly to avoid leaking IOKit handles across Start/Stop cycles.
         if (_notifier != IntPtr.Zero) IOKit.IODeregisterForSystemPower(ref _notifier);
+        if (_notifyPort != IntPtr.Zero) { IOKit.IONotificationPortDestroy(_notifyPort); _notifyPort = IntPtr.Zero; }
+        if (_rootPort != IntPtr.Zero) { IOKit.IOServiceClose(_rootPort); _rootPort = IntPtr.Zero; }
         _loop.Dispose();
         _loop = null;
         _callback = null;

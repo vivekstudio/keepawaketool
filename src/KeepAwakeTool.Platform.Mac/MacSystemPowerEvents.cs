@@ -43,7 +43,12 @@ public sealed class MacSystemPowerEvents : ISystemPowerEvents
     public void Stop()
     {
         if (_loop is null) return;
+        // IODeregisterForSystemPower releases the notifier object but neither closes the
+        // root-port connection nor destroys the notification port — both must be released
+        // explicitly to avoid leaking IOKit handles across Start/Stop cycles.
         if (_notifier != IntPtr.Zero) IOKit.IODeregisterForSystemPower(ref _notifier);
+        if (_notifyPort != IntPtr.Zero) { IOKit.IONotificationPortDestroy(_notifyPort); _notifyPort = IntPtr.Zero; }
+        if (_rootPort != IntPtr.Zero) { IOKit.IOServiceClose(_rootPort); _rootPort = IntPtr.Zero; }
         _loop.Dispose();
         _loop = null;
         _callback = null;

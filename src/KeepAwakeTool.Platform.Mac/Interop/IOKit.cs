@@ -36,6 +36,16 @@ internal static class IOKit
     [DllImport(Lib)]
     internal static extern int IODeregisterForSystemPower(ref IntPtr notifier);
 
+    // IODeregisterForSystemPower releases the notifier object but NOT the
+    // notification port itself, and does NOT close the connection. Callers must
+    // additionally call IONotificationPortDestroy(_notifyPort) and IOServiceClose(_rootPort)
+    // on the same Stop() path to fully release IOKit handles.
+    [DllImport(Lib)]
+    internal static extern void IONotificationPortDestroy(IntPtr notify);
+
+    [DllImport(Lib)]
+    internal static extern int IOServiceClose(IntPtr connect);
+
     [DllImport(Lib)]
     internal static extern void IOAllowPowerChange(IntPtr kernPort, IntPtr notificationID);
 
