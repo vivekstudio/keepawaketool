@@ -488,12 +488,22 @@ EOF
 )"
 ```
 
-## Task 5: Create `Platform.Mac` stub project, restructure `App.csproj`, update solution
+## Task 5: Create `Platform.Mac` stub project, restructure `App.csproj` to multi-target, update solution
+
+> **Architectural revision (post-brainstorm, NU1201-driven):** the original plan had the App
+> target single neutral `net10.0` with RID-conditional platform refs. NuGet **NU1201** makes
+> that impossible — a `net10.0` consumer cannot reference a `net10.0-windows` producer (the
+> rule is unsuppressible). Because spec invariant requires the win-x64 publish to stay
+> byte-for-byte (App + Platform.Win both `net10.0-windows`), the App **must multi-target**
+> `net10.0-windows;net10.0`. See spec §3.1/§3.2/§3.4 (revised) and §10. This also means
+> `ServiceRegistration.cs` must be wrapped in `#if WINDOWS` here (Step 5) so the `net10.0`
+> facet compiles; Task 6 fills in the `#else` branch.
 
 **Files:**
 - Create: `src/KeepAwakeTool.Platform.Mac/KeepAwakeTool.Platform.Mac.csproj`
 - Create: `src/KeepAwakeTool.Platform.Mac/Placeholder.cs`
 - Modify: `src/KeepAwakeTool.App/KeepAwakeTool.App.csproj`
+- Modify: `src/KeepAwakeTool.App/Composition/ServiceRegistration.cs`
 - Modify: `KeepAwakeTool.slnx`
 
 - [ ] **Step 1: Create the Platform.Mac project file**
@@ -526,7 +536,7 @@ namespace KeepAwakeTool.Platform.Mac;
 internal static class Placeholder { }
 ```
 
-- [ ] **Step 3: Restructure the App project file**
+- [ ] **Step 3: Restructure the App project file to multi-target**
 
 Replace the entire contents of `src/KeepAwakeTool.App/KeepAwakeTool.App.csproj` with:
 
@@ -534,19 +544,14 @@ Replace the entire contents of `src/KeepAwakeTool.App/KeepAwakeTool.App.csproj` 
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>
     <RootNamespace>KeepAwakeTool.App</RootNamespace>
     <AssemblyName>KeepAwakeTool</AssemblyName>
     <UseAvalonia>true</UseAvalonia>
-    <_IsWinRid>false</_IsWinRid>
-    <_IsOsxRid>false</_IsOsxRid>
-    <_IsWinRid Condition="$(RuntimeIdentifier.StartsWith('win'))">true</_IsWinRid>
-    <_IsOsxRid Condition="$(RuntimeIdentifier.StartsWith('osx'))">true</_IsOsxRid>
-    <_NoRid Condition="'$(RuntimeIdentifier)' == ''">true</_NoRid>
   </PropertyGroup>
 
-  <!-- Windows publish keeps the application manifest; never applied on macOS. -->
-  <ItemGroup Condition="'$(_IsWinRid)' == 'true' or '$(_NoRid)' == 'true'">
+  <!-- Windows-only application manifest (applied only on the -windows TFM). -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <ApplicationManifest Include="app.manifest" />
   </ItemGroup>
 
@@ -565,17 +570,23 @@ Replace the entire contents of `src/KeepAwakeTool.App/KeepAwakeTool.App.csproj` 
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.8" />
   </ItemGroup>
 
-  <!-- Platform projects: referenced for matching RID, or both when no RID (build/test). -->
-  <ItemGroup Condition="'$(_IsWinRid)' == 'true' or '$(_NoRid)' == 'true'">
+  <!-- Platform projects: each TFM references exactly one. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <ProjectReference Include="..\KeepAwakeTool.Platform.Win\KeepAwakeTool.Platform.Win.csproj" />
   </ItemGroup>
-  <ItemGroup Condition="'$(_IsOsxRid)' == 'true' or '$(_NoRid)' == 'true'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <ProjectReference Include="..\KeepAwakeTool.Platform.Mac\KeepAwakeTool.Platform.Mac.csproj" />
   </ItemGroup>
 </Project>
 ```
 
-Note: `Microsoft.Win32.SystemEvents` is intentionally removed (moved to Platform.Win in Task 2). `app.manifest` stays on disk.
+Notes:
+- `TargetFrameworks` (plural) overrides the singular `TargetFramework` set by the root
+  `Directory.Build.props` — SDK projects iterate per TFM when the plural form is set.
+- The SDK auto-defines a `WINDOWS` compile symbol on the `net10.0-windows` TFM, which Step 5
+  and Task 6 rely on.
+- `Microsoft.Win32.SystemEvents` is intentionally NOT here (moved to Platform.Win in Task 2).
+- `app.manifest` stays on disk.
 
 - [ ] **Step 4: Add Platform.Mac to the solution**
 
@@ -596,21 +607,78 @@ Replace `KeepAwakeTool.slnx` contents with:
 </Solution>
 ```
 
-- [ ] **Step 5: Verify the solution builds (App now has both platform refs; ServiceRegistration still compiles because Platform.Win types exist)**
+- [ ] **Step 5: Wrap ServiceRegistration in `#if WINDOWS` so the `net10.0` facet compiles**
+
+Under multi-targeting, the `net10.0` facet of App does **not** reference `Platform.Win`, so
+the existing `using KeepAwakeTool.Platform.Win;` and the Windows type references in the body
+will not resolve and the build will fail. Task 6 will fill in the macOS branch; this step
+only adds the minimum compile-time guard to keep both facets buildable.
+
+In `src/KeepAwakeTool.App/Composition/ServiceRegistration.cs`:
+
+a) Wrap the existing `using KeepAwakeTool.Platform.Win;` (currently near the top of the file)
+   in conditional compilation:
+
+```csharp
+#if WINDOWS
+using KeepAwakeTool.Platform.Win;
+#endif
+```
+
+b) Replace the existing `if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) throw …;`
+   guard plus the Windows registrations (the block from that `if` through the
+   `services.AddSingleton<IGlobalHotkeyService>(…)` registration) with:
+
+```csharp
+#if WINDOWS
+        var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName!;
+        services.AddSingleton<IInputSimulator, WindowsInputSimulator>();
+        services.AddSingleton<IIdleMonitor, WindowsIdleMonitor>();
+        services.AddSingleton<IPowerManager, WindowsPowerManager>();
+        services.AddSingleton<IAutoStartManager>(_ => new WindowsAutoStartManager(exePath));
+        services.AddSingleton<ISessionInfo, WindowsSessionInfo>();
+        services.AddSingleton<IGlobalHotkeyService>(sp =>
+        {
+            var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
+            return new WindowsGlobalHotkeyService((level, msg) => fl.Log(level, msg));
+        });
+#else
+        // macOS implementations are registered here in Task 6 (App.axaml.cs / Program.cs rewiring)
+        // and fully filled out in Task 18 (Phase 2).
+        throw new PlatformNotSupportedException("macOS platform services land in Phase 2.");
+#endif
+```
+
+(The new `IPermissionGate`/`IInputPermissionPrompt`/`ISystemPowerEvents` registrations are
+added by Task 6 — leave the body above EXACTLY as it is at HEAD for now: just wrap it.)
+
+- [ ] **Step 6: Build (both TFMs must succeed) and tests still pass**
 
 Run: `dotnet build -c Release`
-Expected: Build succeeded, 0 errors. (ServiceRegistration still references only Platform.Win types — that is fixed in Task 6. The App TFM is now `net10.0`.)
+Expected: Build succeeded, 0 errors. Two App output dirs appear:
+`src/KeepAwakeTool.App/bin/Release/net10.0-windows/` and `src/KeepAwakeTool.App/bin/Release/net10.0/`.
 
-- [ ] **Step 6: Commit**
+Run: `dotnet test -c Release -- xUnit.ParallelizeTestCollections=false`
+Expected: 53 passing (App.Tests targets `net10.0-windows` and resolves to the App's
+`net10.0-windows` facet automatically; no test project change needed).
+
+If NU1201 still appears, the `Condition` expressions on the `ProjectReference` ItemGroups are
+wrong — stop and report. Do not try to add `SkipGetTargetFrameworkProperties` or
+`AssetTargetFallback`; those will not help with TFM-mismatched P2P references.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/KeepAwakeTool.Platform.Mac/ src/KeepAwakeTool.App/KeepAwakeTool.App.csproj KeepAwakeTool.slnx
+git add src/KeepAwakeTool.Platform.Mac/ src/KeepAwakeTool.App/KeepAwakeTool.App.csproj src/KeepAwakeTool.App/Composition/ServiceRegistration.cs KeepAwakeTool.slnx
 git commit -m "$(cat <<'EOF'
-refactor(app): neutral net10.0 TFM + conditional platform ProjectReferences
+refactor(app): multi-target net10.0-windows;net10.0 with per-TFM platform refs
 
-App is now plain net10.0/Exe; Platform.Win referenced for win RID or no RID,
-Platform.Mac for osx RID or no RID. app.manifest applied on Windows only.
-Adds the Platform.Mac project (stub; implemented in Phase 2).
+NU1201 makes the single-neutral-net10.0 App + net10.0-windows Platform.Win
+reference impossible at restore time. Multi-targeting the App is the only
+option preserving Windows v1 byte-for-byte (the -windows TFM publishes
+unchanged) while letting the app build/run on macOS via the net10.0 TFM.
+ServiceRegistration is wrapped in #if WINDOWS; Task 6 fills in the #else
+macOS branch.
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
 EOF
@@ -625,40 +693,25 @@ EOF
 - Modify: `src/KeepAwakeTool.App/Program.cs`
 - Delete: `src/KeepAwakeTool.App/SingleInstance/SingleInstanceGuard.cs`
 
-- [ ] **Step 1: Rewrite ServiceRegistration with an OS switch**
+- [ ] **Step 1: Add the new Windows registrations inside the existing `#if WINDOWS` block**
 
-Replace `src/KeepAwakeTool.App/Composition/ServiceRegistration.cs` lines 42–55 (the `if (!RuntimeInformation.IsOSPlatform(...)) throw;` block through the `IGlobalHotkeyService` registration) with:
+Task 5 already wrapped the Windows registrations in `#if WINDOWS` and put a `throw` in the
+`#else` branch. This step adds the three new Windows registrations introduced in earlier
+tasks (`IPermissionGate`, `IInputPermissionPrompt`, `ISystemPowerEvents`) **inside** that
+existing `#if WINDOWS` block, and updates the `ActivityEngine` registration to pass the gate.
+
+In `src/KeepAwakeTool.App/Composition/ServiceRegistration.cs`, inside the `#if WINDOWS`
+block, add these three lines next to the existing Windows registrations (after
+`services.AddSingleton<ISessionInfo, WindowsSessionInfo>();` is fine):
 
 ```csharp
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName!;
-            services.AddSingleton<IInputSimulator, WindowsInputSimulator>();
-            services.AddSingleton<IIdleMonitor, WindowsIdleMonitor>();
-            services.AddSingleton<IPowerManager, WindowsPowerManager>();
-            services.AddSingleton<IAutoStartManager>(_ => new WindowsAutoStartManager(exePath));
-            services.AddSingleton<ISessionInfo, WindowsSessionInfo>();
             services.AddSingleton<IPermissionGate, WindowsPermissionGate>();
             services.AddSingleton<IInputPermissionPrompt, WindowsInputPermissionPrompt>();
             services.AddSingleton<ISystemPowerEvents, WindowsSystemPowerEvents>();
-            services.AddSingleton<IGlobalHotkeyService>(sp =>
-            {
-                var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
-                return new WindowsGlobalHotkeyService((level, msg) => fl.Log(level, msg));
-            });
-        }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            // macOS implementations are registered here in Phase 2 (Task 17).
-            throw new PlatformNotSupportedException("macOS platform services land in Phase 2.");
-        }
-        else
-        {
-            throw new PlatformNotSupportedException("Supported platforms: Windows, macOS.");
-        }
 ```
 
-Then update the `ActivityEngine` registration (was lines 57–62) to pass the gate:
+Then update the `ActivityEngine` registration (the existing 5-arg form) to pass the gate as
+a 6th argument:
 
 ```csharp
         services.AddSingleton<ActivityEngine>(sp => new ActivityEngine(
@@ -670,7 +723,14 @@ Then update the `ActivityEngine` registration (was lines 57–62) to pass the ga
             sp.GetRequiredService<IPermissionGate>()));
 ```
 
-Keep the existing `using KeepAwakeTool.Platform.Win;` (only reachable on Windows at runtime; the type references resolve at compile time because Platform.Win is referenced in the no-RID build).
+The `IPermissionGate`, `IInputPermissionPrompt`, `ISystemPowerEvents` types live in
+`KeepAwakeTool.Core.Platform` (already imported via existing `using`); no `#if` needed for
+their type names. The `Windows*` impl types live in `KeepAwakeTool.Platform.Win`, which is
+already `#if WINDOWS`-imported (Task 5 Step 5a), so they resolve correctly inside the
+`#if WINDOWS` block.
+
+The `#else` branch from Task 5 stays as-is for now (still throws); Task 18 fills it in with
+the macOS registrations.
 
 - [ ] **Step 2: Replace direct SystemEvents use in App.axaml.cs + add the one-time permission prompt**
 
@@ -728,7 +788,6 @@ using Avalonia;
 using KeepAwakeTool.Core.Platform;
 using System;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace KeepAwakeTool.App;
@@ -771,11 +830,12 @@ internal static class Program
 
     private static ISingleInstanceGuard CreateGuard()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return new KeepAwakeTool.Platform.Win.WindowsSingleInstanceGuard();
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            throw new PlatformNotSupportedException("macOS single-instance guard lands in Phase 2.");
-        throw new PlatformNotSupportedException("Supported platforms: Windows, macOS.");
+#if WINDOWS
+        return new KeepAwakeTool.Platform.Win.WindowsSingleInstanceGuard();
+#else
+        // macOS implementation lands in Task 18 (Phase 2).
+        throw new PlatformNotSupportedException("macOS single-instance guard lands in Phase 2.");
+#endif
     }
 
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>()
@@ -783,6 +843,10 @@ internal static class Program
         .LogToTrace();
 }
 ```
+
+`#if WINDOWS` (predefined by the SDK on `net*-windows` TFMs) selects the correct platform
+guard at compile time. The `System.Runtime.InteropServices` using is dropped because the
+runtime `IsOSPlatform` check is no longer needed.
 
 - [ ] **Step 4: Delete the obsolete guard**
 
@@ -826,14 +890,18 @@ Expected: Build succeeded; 53 tests pass.
 
 - [ ] **Step 2: Cross-verify the Windows publish graph still resolves only Platform.Win**
 
-Run: `dotnet publish src/KeepAwakeTool.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o /tmp/kat-winpub 2>&1 | tail -5`
-Expected: "Build succeeded" / publish completes. (Cross-publish to win-x64 from macOS validates the conditional refs: the `osx` ItemGroup is excluded, only Platform.Win is referenced. This is a graph/compile check, not a runtime check.)
+Run: `dotnet publish src/KeepAwakeTool.App -c Release -f net10.0-windows -r win-x64 --self-contained -p:PublishSingleFile=true -o /tmp/kat-winpub 2>&1 | tail -5`
+Expected: "Build succeeded" / publish completes. (`-f net10.0-windows` is explicit because
+the App is multi-targeted; `dotnet publish` requires an explicit `-f` for multi-target
+projects. Cross-publish to win-x64 from macOS validates the per-TFM refs: the `net10.0`
+ItemGroup is excluded, only Platform.Win is referenced. This is a graph/compile check, not
+a runtime check.)
 
 - [ ] **Step 3: Confirm Platform.Mac is NOT in the Windows publish output**
 
 Run: `ls /tmp/kat-winpub | grep -i 'KeepAwakeTool.Platform' || true`
 Expected: `KeepAwakeTool.Platform.Win.dll` present (or folded into the single file); **no** `KeepAwakeTool.Platform.Mac.dll`. If single-file hides it, instead run:
-`dotnet build src/KeepAwakeTool.App -c Release -r win-x64 -o /tmp/kat-winbuild && ls /tmp/kat-winbuild | grep Platform`
+`dotnet build src/KeepAwakeTool.App -c Release -f net10.0-windows -r win-x64 -o /tmp/kat-winbuild && ls /tmp/kat-winbuild | grep Platform`
 Expected: only `KeepAwakeTool.Platform.Win.dll`.
 
 - [ ] **Step 4: Clean up**
@@ -1926,44 +1994,76 @@ EOF
 - Create: `tests/KeepAwakeTool.Platform.Mac.Tests/MacPlatformIntegrationTests.cs`
 - Modify: `KeepAwakeTool.slnx`
 
-- [ ] **Step 1: Replace the throwing macOS branch in ServiceRegistration**
+- [ ] **Step 1: Fill in the `#else` branch in ServiceRegistration with the macOS registrations**
 
-In `src/KeepAwakeTool.App/Composition/ServiceRegistration.cs`, add `using KeepAwakeTool.Platform.Mac;` at the top (next to the existing `using KeepAwakeTool.Platform.Win;`). Replace the `else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) { throw ... }` block (added in Task 6 Step 1) with:
+In `src/KeepAwakeTool.App/Composition/ServiceRegistration.cs`:
+
+a) Add a TFM-conditional using for the Mac namespace at the top of the file, next to the
+   existing `#if WINDOWS / using KeepAwakeTool.Platform.Win; / #endif`:
 
 ```csharp
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            services.AddSingleton<IInputSimulator, MacInputSimulator>();
-            services.AddSingleton<IIdleMonitor, MacIdleMonitor>();
-            services.AddSingleton<IPermissionGate, MacPermissionGate>();
-            services.AddSingleton<IInputPermissionPrompt, MacInputPermissionPrompt>();
-            services.AddSingleton<ISessionInfo, MacSessionInfo>();
-            services.AddSingleton<IPowerManager>(sp =>
-            {
-                var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
-                return new MacPowerManager((lvl, msg) => fl.Log(lvl, msg));
-            });
-            services.AddSingleton<IAutoStartManager>(sp =>
-            {
-                var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
-                return new MacAutoStartManager((lvl, msg) => fl.Log(lvl, msg));
-            });
-            services.AddSingleton<ISystemPowerEvents, MacSystemPowerEvents>();
-            services.AddSingleton<IGlobalHotkeyService>(sp =>
-            {
-                var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
-                return new MacGlobalHotkeyService((lvl, msg) => fl.Log(lvl, msg));
-            });
-        }
+#if WINDOWS
+using KeepAwakeTool.Platform.Win;
+#else
+using KeepAwakeTool.Platform.Mac;
+#endif
 ```
 
-- [ ] **Step 2: Replace the throwing macOS branch in Program.cs**
-
-In `src/KeepAwakeTool.App/Program.cs` `CreateGuard()`, replace the macOS `throw` line with:
+b) Replace the placeholder `#else` body inside the existing `#if WINDOWS / #else / #endif`
+   block (the `throw new PlatformNotSupportedException(...)` line) with the macOS
+   registrations:
 
 ```csharp
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            return new KeepAwakeTool.Platform.Mac.MacSingleInstanceGuard();
+#else
+        services.AddSingleton<IInputSimulator, MacInputSimulator>();
+        services.AddSingleton<IIdleMonitor, MacIdleMonitor>();
+        services.AddSingleton<IPermissionGate, MacPermissionGate>();
+        services.AddSingleton<IInputPermissionPrompt, MacInputPermissionPrompt>();
+        services.AddSingleton<ISessionInfo, MacSessionInfo>();
+        services.AddSingleton<IPowerManager>(sp =>
+        {
+            var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
+            return new MacPowerManager((lvl, msg) => fl.Log(lvl, msg));
+        });
+        services.AddSingleton<IAutoStartManager>(sp =>
+        {
+            var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
+            return new MacAutoStartManager((lvl, msg) => fl.Log(lvl, msg));
+        });
+        services.AddSingleton<ISystemPowerEvents, MacSystemPowerEvents>();
+        services.AddSingleton<IGlobalHotkeyService>(sp =>
+        {
+            var fl = sp.GetRequiredService<KeepAwakeTool.Core.Diagnostics.FileLogger>();
+            return new MacGlobalHotkeyService((lvl, msg) => fl.Log(lvl, msg));
+        });
+#endif
+```
+
+(Indentation matches the existing `#if WINDOWS` block. The `Mac*` impl type names resolve
+via the `#else using KeepAwakeTool.Platform.Mac;` added in (a).)
+
+- [ ] **Step 2: Fill in the `#else` branch in Program.cs `CreateGuard()`**
+
+In `src/KeepAwakeTool.App/Program.cs`, replace the placeholder `#else throw …` line in
+`CreateGuard()` with:
+
+```csharp
+#else
+        return new KeepAwakeTool.Platform.Mac.MacSingleInstanceGuard();
+#endif
+```
+
+(The full method becomes:)
+
+```csharp
+    private static ISingleInstanceGuard CreateGuard()
+    {
+#if WINDOWS
+        return new KeepAwakeTool.Platform.Win.WindowsSingleInstanceGuard();
+#else
+        return new KeepAwakeTool.Platform.Mac.MacSingleInstanceGuard();
+#endif
+    }
 ```
 
 - [ ] **Step 3: Create the macOS integration test project**
@@ -2358,8 +2458,12 @@ Expected: 3 passing.
 
 - [ ] **Step 3: macOS publish smoke (the deliverable artifact)**
 
-Run: `dotnet publish src/KeepAwakeTool.App -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true -o /tmp/kat-osxpub 2>&1 | tail -3`
-Expected: publish succeeds; `/tmp/kat-osxpub/KeepAwakeTool` exists. Confirm `ls /tmp/kat-osxpub | grep Platform` shows **no** `KeepAwakeTool.Platform.Win.dll` (single-file may fold it; if so run the non-single-file build check from Task 7 Step 3 with `-r osx-arm64`). Then `rm -rf /tmp/kat-osxpub`.
+Run: `dotnet publish src/KeepAwakeTool.App -c Release -f net10.0 -r osx-arm64 --self-contained -p:PublishSingleFile=true -o /tmp/kat-osxpub 2>&1 | tail -3`
+Expected: publish succeeds; `/tmp/kat-osxpub/KeepAwakeTool` exists. (`-f net10.0` is
+explicit because the App is multi-targeted.) Confirm `ls /tmp/kat-osxpub | grep Platform`
+shows **no** `KeepAwakeTool.Platform.Win.dll` (single-file may fold it; if so run the
+non-single-file build check from Task 7 Step 3 with `-f net10.0 -r osx-arm64`). Then
+`rm -rf /tmp/kat-osxpub`.
 
 - [ ] **Step 4: Windows publish graph unaffected (final regression gate)**
 

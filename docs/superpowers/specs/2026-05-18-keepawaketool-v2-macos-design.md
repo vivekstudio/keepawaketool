@@ -46,42 +46,64 @@ splitting them would create an untestable intermediate state.
 
 ```
 KeepAwakeTool.slnx
-├── KeepAwakeTool.Core           // net10.0      — unchanged TFM; +2 new interfaces
-├── KeepAwakeTool.Platform.Win   // net10.0-windows — unchanged; referenced on Windows builds only
-├── KeepAwakeTool.Platform.Mac   // net10.0      — NEW; CoreGraphics/IOKit/Carbon/SMAppService P/Invoke
-└── KeepAwakeTool.App            // net10.0      — was net10.0-windows; conditional platform refs
+├── KeepAwakeTool.Core           // net10.0                  — unchanged TFM; +3 new interfaces
+├── KeepAwakeTool.Platform.Win   // net10.0-windows          — unchanged; referenced from App's -windows TFM
+├── KeepAwakeTool.Platform.Mac   // net10.0                  — NEW; referenced from App's net10.0 TFM
+└── KeepAwakeTool.App            // net10.0-windows;net10.0  — multi-target; per-TFM platform refs
 ```
 
-### 3.1 Platform-selection mechanism (Approach A — conditional ProjectReference)
+### 3.1 Platform-selection mechanism (multi-targeting + per-TFM ProjectReference)
 
-The App `.csproj` references each platform project conditionally on the runtime identifier:
+The original brainstorm chose a single neutral `net10.0` App TFM with platform refs gated on
+the runtime identifier. That approach is **infeasible**: NuGet rejects a `net10.0` consumer
+referencing a `net10.0-windows` producer with NU1201 (unsuppressible compatibility error).
+Because the spec also requires the Windows v1 publish output to remain byte-for-byte
+identical (the win-x64 binary must stay `net10.0-windows` referencing the unchanged
+`net10.0-windows` `Platform.Win`), the App **must** carry a `net10.0-windows` TFM. The only
+way it can ALSO build and run on macOS is to **multi-target**:
 
-- `Platform.Win` is referenced when `$(RuntimeIdentifier)` starts with `win` **or** no RID is
-  set.
-- `Platform.Mac` is referenced when `$(RuntimeIdentifier)` starts with `osx` **or** no RID is
-  set.
-- The no-RID case (plain `dotnet build` / `dotnet test`) references **both**, so the solution
-  always builds and Core tests run on either OS.
-- A published, RID-specified build bundles **only** the matching platform assembly — no
-  unused native interop is shipped, and the Windows publish output is unchanged.
+`KeepAwakeTool.App.csproj` declares `<TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>`
+(plural). Each TFM references exactly one platform project, gated on `$(TargetFramework)`:
 
-`Platform.Win` keeps its `net10.0-windows` TFM (its Win32 P/Invoke requires it; it is only
-referenced on Windows builds, so this is harmless). `Platform.Mac` is plain `net10.0` — macOS
-interop is `[LibraryImport]` against system frameworks and needs no SDK platform gate.
+- `net10.0-windows` TFM → references `Platform.Win` (compatible TFM), gets `app.manifest`.
+- `net10.0` TFM → references `Platform.Mac`.
+- A plain `dotnet build` (no RID) on either OS builds both TFMs (produces two output
+  directories), so the solution is always green on either OS.
+- `dotnet publish ... -r win-x64` auto-selects the `net10.0-windows` facet → byte-for-byte
+  identical to v1.
+- `dotnet publish ... -r osx-arm64` auto-selects the `net10.0` facet → bundles `Platform.Mac`
+  only.
+
+`Platform.Win` keeps its single `net10.0-windows` TFM (its Win32 P/Invoke requires it).
+`Platform.Mac` is single `net10.0` (macOS interop is `[DllImport]` against system frameworks
+and needs no SDK platform gate). Only the App is multi-targeted; multi-targeting Platform.Win
+would change the shipped Windows binary (different Registry code path under packaged vs.
+in-box `Microsoft.Win32.Registry`) and violate the byte-for-byte invariant.
 
 ### 3.2 App project changes
 
-- TFM `net10.0-windows` → `net10.0`.
-- `<OutputType>WinExe</OutputType>` → `Exe`.
+- `<TargetFramework>net10.0-windows</TargetFramework>` → `<TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>`
+  (singular → plural; multi-target).
+- `<OutputType>WinExe</OutputType>` → `Exe` (the `-windows` TFM still produces a Windows GUI
+  executable; `WinExe` is no longer needed because Avalonia handles the GUI entry point on
+  both TFMs).
 - `<ApplicationManifest>app.manifest</ApplicationManifest>` global property removed; the
-  manifest is re-applied via a **Windows-conditional** `<ApplicationManifest>` item so the
-  Windows publish keeps it. `app.manifest` stays in the repo.
+  manifest is re-applied via a `<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">`
+  containing an `<ApplicationManifest Include="app.manifest" />` item so the Windows TFM keeps
+  it. `app.manifest` stays in the repo.
 - `PackageReference Microsoft.Win32.SystemEvents` removed from `App` (Windows-only). Its one
   use (resume-from-sleep) moves behind `ISystemPowerEvents` (§4), whose Windows impl lives in
   `Platform.Win` where the package dependency is legitimate.
+- `<ProjectReference Include="..\KeepAwakeTool.Platform.Win\...">` and
+  `<ProjectReference Include="..\KeepAwakeTool.Platform.Mac\...">` each sit inside a
+  TFM-conditional `ItemGroup` (`'$(TargetFramework)' == 'net10.0-windows'` and
+  `'$(TargetFramework)' == 'net10.0'` respectively).
 - Avalonia and `Microsoft.Extensions.*` package references are unchanged (already
-  cross-platform).
+  cross-platform; consumed by both TFMs).
 - `KeepAwakeTool.slnx` gains the `Platform.Mac` project.
+- `App.Tests.csproj` is **unchanged** — it targets `net10.0-windows`, and NuGet's TFM
+  matching resolves it to the App's `net10.0-windows` facet automatically. The 11 existing
+  App.Tests continue to pass without modification.
 
 ### 3.3 Two new Core abstractions
 
@@ -109,19 +131,29 @@ Windows impl and a macOS impl selected by DI:
      switch *before* Avalonia starts (DI is not yet built at that point). v1 behavior is
      preserved: a second instance exits; `SignalExistingInstance()` stays a no-op.
 
-### 3.4 DI selection (`ServiceRegistration`)
+### 3.4 DI selection (`ServiceRegistration`) — compile-time, per-TFM
 
-Replace the `throw` on non-Windows with:
+Because each TFM only references one platform project, the OS branch is **compile-time**
+(not runtime). The SDK predefines a `WINDOWS` symbol on `net*-windows` TFMs, so
+`ServiceRegistration` uses:
 
 ```
-if   (IsOSPlatform(Windows)) { register Windows impls of the 6 interfaces + ISystemPowerEvents + IPermissionGate }
-elif (IsOSPlatform(OSX))     { register macOS  impls of the 6 interfaces + ISystemPowerEvents + IPermissionGate }
-else                          throw PlatformNotSupportedException
+#if WINDOWS
+    register Windows impls of the 6 interfaces + ISystemPowerEvents + IPermissionGate + IInputPermissionPrompt
+#else
+    register macOS   impls of the 6 interfaces + ISystemPowerEvents + IPermissionGate + IInputPermissionPrompt
+#endif
 ```
+
+The `using KeepAwakeTool.Platform.Win;` / `using KeepAwakeTool.Platform.Mac;` directives are
+likewise wrapped in `#if WINDOWS` / `#else`. `Program.cs` uses the same pattern for the
+single-instance guard creation (the only other site that references platform-specific types
+directly). `App.axaml.cs` consumes only the Core interfaces (`ISystemPowerEvents`,
+`IInputPermissionPrompt`, etc.) and needs no `#if` directives.
 
 The six existing interfaces are `IInputSimulator`, `IIdleMonitor`, `IPowerManager`,
 `IAutoStartManager`, `ISessionInfo`, `IGlobalHotkeyService`. `IClock`/`SystemClock` is already
-cross-platform and unchanged. `IPermissionGate` is new (§5).
+cross-platform and unchanged. `IPermissionGate` and `IInputPermissionPrompt` are new (§5/§6).
 
 ## 4. `KeepAwakeTool.Platform.Mac` — Interface Implementations
 
@@ -258,6 +290,13 @@ This spec supersedes, for macOS, the following parts of `2026-05-14-keepawaketoo
   `pmset displaysleepnow` subprocess for display-off, `ISessionInfo` stubbed `false`, plus
   the two new Core abstractions (`ISystemPowerEvents`, `ISingleInstanceGuard`) and
   `IPermissionGate`, none of which existed in the v1 interface list.
+- **App TFM (this v2 spec, §3.1/§3.2/§3.4)** — original brainstorm preferred a single
+  neutral `net10.0` App with RID-gated platform refs; that approach was changed to
+  **multi-targeting** (`net10.0-windows;net10.0`) with TFM-conditional refs and `#if WINDOWS`
+  in `ServiceRegistration`/`Program.cs` after Task 5 surfaced NuGet **NU1201** (a `net10.0`
+  consumer cannot reference a `net10.0-windows` producer — unsuppressible). Multi-targeting
+  is the only option that preserves the byte-for-byte Windows v1 publish invariant. Spec
+  §3.1/§3.2/§3.4 reflect the revised design.
 
 The v1 design doc itself is left unmodified as the historical record.
 
@@ -282,13 +321,17 @@ The v1 design doc itself is left unmodified as the historical record.
 
 ## 12. Build, Publish, Distribution
 
-- `dotnet build -c Release` (no RID) builds all five projects on macOS (both platform
-  projects referenced) — solution always green.
+- `dotnet build -c Release` (no RID) on macOS builds **both** App TFMs (`net10.0-windows`
+  and `net10.0`), producing `bin/Release/net10.0-windows/` and `bin/Release/net10.0/`
+  outputs. Solution always green on either OS.
 - macOS publish:
   `dotnet publish src/KeepAwakeTool.App -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true -o publish`
-  → bundles `Platform.Mac` only.
-- **Windows publish command and output unchanged** → bundles `Platform.Win` only → v1 shipped
-  path byte-for-byte unaffected (the core safety property of Approach A).
+  → MSBuild auto-selects the `net10.0` TFM (compatible with `osx-arm64`) → bundles
+  `Platform.Mac` only.
+- **Windows publish command and output unchanged** → MSBuild auto-selects the
+  `net10.0-windows` TFM (compatible with `win-x64`) → bundles `Platform.Win` only → v1
+  shipped path byte-for-byte unaffected (the core safety property of the multi-target
+  design).
 - **CI**: add a `macos-latest` job (build + Core tests, non-parallel) alongside the existing
   `windows-latest`, per v1 §12.
 - Distribution: portable self-contained binary, as v1. Code-signing / notarization / `.pkg`
