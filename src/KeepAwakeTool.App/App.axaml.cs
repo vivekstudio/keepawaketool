@@ -98,6 +98,7 @@ public partial class App : Application
                 _log?.Log("INFO", "Shutting down");
                 powerEvents.Resumed -= OnSystemResumed;
                 powerEvents.Stop();
+                powerEvents.Dispose();
                 _pump?.Dispose();
                 power.Stop();
                 (Services.GetRequiredService<IGlobalHotkeyService>() as IDisposable)?.Dispose();

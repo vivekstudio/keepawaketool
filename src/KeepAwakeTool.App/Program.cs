@@ -38,7 +38,7 @@ internal static class Program
         }
         finally
         {
-            _guard.Release();
+            _guard?.Release();
         }
     }
 

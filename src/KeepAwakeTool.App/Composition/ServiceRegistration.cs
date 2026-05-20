@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Runtime.InteropServices;
 using KeepAwakeTool.App;
 using KeepAwakeTool.App.Notifications;
 using KeepAwakeTool.Core.Activity;
@@ -57,7 +56,7 @@ public static class ServiceRegistration
         services.AddSingleton<IInputPermissionPrompt, WindowsInputPermissionPrompt>();
         services.AddSingleton<ISystemPowerEvents, WindowsSystemPowerEvents>();
 #else
-        // macOS implementations are wired in Task 6 and fully filled out in Task 18 (Phase 2).
+        // macOS implementations land in Task 18 (Phase 2).
         throw new PlatformNotSupportedException("macOS platform services land in Phase 2.");
 #endif
 
