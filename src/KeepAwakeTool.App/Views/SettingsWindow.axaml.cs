@@ -30,6 +30,9 @@ public partial class SettingsWindow : Window
         this.FindControl<Button>("OkButton")!.Click    += (_, _) => { ApplyAndStay(); Close(); };
         this.FindControl<Button>("CancelButton")!.Click += (_, _) => Close();
 
+        this.FindControl<Button>("OpenA11yButton")!.Click += (_, _) => OpenAccessibilitySettings();
+        this.FindControl<Button>("RecheckA11yButton")!.Click += (_, _) => RefreshStatus();
+
         _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _statusTimer.Tick += (_, _) => RefreshStatus();
         _statusTimer.Start();
@@ -42,7 +45,26 @@ public partial class SettingsWindow : Window
     private void RefreshStatus()
     {
         var banner = this.FindControl<TextBlock>("StatusBanner");
-        if (banner is null) return;
+        var border = this.FindControl<Border>("StatusBorder");
+        var openBtn = this.FindControl<Button>("OpenA11yButton");
+        var recheckBtn = this.FindControl<Button>("RecheckA11yButton");
+        if (banner is null || border is null || openBtn is null || recheckBtn is null) return;
+
+        var gate = _sp.GetRequiredService<IPermissionGate>();
+        if (!gate.CanInjectInput)
+        {
+            banner.Text = "Accessibility permission required — KeepAwakeTool cannot keep you "
+                        + "active until it is granted in System Settings ▸ Privacy & Security ▸ Accessibility.";
+            border.Background = Avalonia.Media.Brushes.DarkOrange;
+            openBtn.IsVisible = true;
+            recheckBtn.IsVisible = true;
+            return;
+        }
+
+        openBtn.IsVisible = false;
+        recheckBtn.IsVisible = false;
+        border.Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(0x22, 0x80, 0x80, 0x80));
+
         var scheduler = _sp.GetRequiredService<Scheduler>();
         var cfg = _sp.GetRequiredService<Func<AppConfig>>()();
         var idle = _sp.GetRequiredService<IIdleMonitor>().TimeSinceLastUserInput();
@@ -52,6 +74,18 @@ public partial class SettingsWindow : Window
             cfg.Power.PowerSaveMode,
             cfg.Activity.IntervalSeconds,
             idle);
+    }
+
+    private void OpenAccessibilitySettings()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                "open",
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            { UseShellExecute = false });
+        }
+        catch { /* best-effort; banner stays until Re-check confirms grant */ }
     }
 
     private void ApplyAndStay()
