@@ -10,11 +10,16 @@
         <Border DockPanel.Dock="Top" Background="#22808080" Padding="10,6">
             <TextBlock Name="StatusBanner" FontWeight="SemiBold" Text="Status: …"/>
         </Border>
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10">
-            <Button Content="Apply" Name="ApplyButton" Margin="0,0,5,0"/>
-            <Button Content="OK"    Name="OkButton"    Margin="0,0,5,0"/>
-            <Button Content="Cancel" Name="CancelButton"/>
-        </StackPanel>
+        <Grid DockPanel.Dock="Bottom" Margin="10">
+            <TextBlock Text="by vivekstudio v1.0"
+                       VerticalAlignment="Center"
+                       FontSize="11" Foreground="#808080" Opacity="0.7"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Apply" Name="ApplyButton" Margin="0,0,5,0"/>
+                <Button Content="OK"    Name="OkButton"    Margin="0,0,5,0"/>
+                <Button Content="Cancel" Name="CancelButton"/>
+            </StackPanel>
+        </Grid>
         <TabControl>
             <TabItem Header="General"><v:GeneralTab/></TabItem>
             <TabItem Header="Activity"><v:ActivityTab/></TabItem>

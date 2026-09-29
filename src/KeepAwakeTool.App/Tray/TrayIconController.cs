@@ -85,6 +85,8 @@ public sealed class TrayIconController
         var quit = new NativeMenuItem("Quit");
         quit.Click += (_, _) => { (Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown(); };
         menu.Add(quit);
+        var brandText = new NativeMenuItem("KeepAwakeTool v1.0 by vivekstudio") { IsEnabled = false };
+        menu.Add(brandText);
         return menu;
     }
 
@@ -125,7 +127,7 @@ public sealed class TrayIconController
         var scheduler = _sp.GetRequiredService<Scheduler>();
         var cfg = _sp.GetRequiredService<Func<AppConfig>>()();
         var idle = _sp.GetRequiredService<IIdleMonitor>().TimeSinceLastUserInput();
-        return "KeepAwakeTool — " + StatusText.Build(
+        return StatusText.Build(
                    scheduler.State,
                    cfg.Power.ForceDisplayOffAfterInjection,
                    cfg.Power.PowerSaveMode,
@@ -139,10 +141,10 @@ public sealed class TrayIconController
         if (_tray is null) return;
         var asset = state switch
         {
-            EngineState.Running   => "avares://KeepAwakeTool/Tray/Assets/icon-running.ico",
-            EngineState.Paused    => "avares://KeepAwakeTool/Tray/Assets/icon-paused.ico",
+            EngineState.Running => "avares://KeepAwakeTool/Tray/Assets/icon-running.ico",
+            EngineState.Paused => "avares://KeepAwakeTool/Tray/Assets/icon-paused.ico",
             EngineState.PowerSave => "avares://KeepAwakeTool/Tray/Assets/icon-powersave.ico",
-            _                     => "avares://KeepAwakeTool/Tray/Assets/icon-stopped.ico"
+            _ => "avares://KeepAwakeTool/Tray/Assets/icon-stopped.ico"
         };
         using var stream = AssetLoader.Open(new Uri(asset));
         _tray.Icon = new WindowIcon(stream);
